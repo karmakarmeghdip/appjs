@@ -4,16 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-# Deno runtime for JavaScript execution
-deno_runtime = "0.239.0"
-
-# sys_traits for Deno runtime (provides RealSys)
-sys_traits = "0.1"
+# Deno core — provides V8 JavaScript runtime, module loading, and extension system
+deno_core = "0.385.0"
+deno_error = "0.7.1"
 
 # Masonry UI framework
 masonry = "0.4.0"
 masonry_winit = "0.4.0"
 winit = "0.30.12"
 
-# Async runtime (required by deno_runtime internally)
+# Async runtime (required by deno_core internally)
 tokio = { version = "1", features = ["full"] }

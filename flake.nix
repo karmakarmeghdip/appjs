@@ -23,6 +23,8 @@
             pkg-config
           ];
 
+          RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
+
           buildInputs = with pkgs; [
             nodejs
             rustc

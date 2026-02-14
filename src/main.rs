@@ -25,6 +25,33 @@ fn main() {
 
     println!("AppJS Starting...");
 
+    // Parse CLI arguments: expect a JS/TS file path as the first argument
+    let args: Vec<String> = std::env::args().collect();
+    let script_path = match args.get(1) {
+        Some(path) => path.clone(),
+        None => {
+            eprintln!("Usage: appjs <script.js|script.ts>");
+            eprintln!("  Example: appjs ./app.js");
+            std::process::exit(1);
+        }
+    };
+
+    // Resolve to absolute path
+    let script_path = std::path::Path::new(&script_path);
+    let absolute_path = match script_path.canonicalize() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!(
+                "Error: Cannot resolve script path '{}': {}",
+                script_path.display(),
+                e
+            );
+            std::process::exit(1);
+        }
+    };
+
+    println!("[Main] Running script: {}", absolute_path.display());
+
     // Create IPC channels for communication between threads
     let channels = IpcChannels::new();
 
@@ -34,8 +61,7 @@ fn main() {
 
     // Configure the JS runtime
     let js_config = JsRuntimeConfig {
-        main_module_path: "./main.js".to_string(),
-        allow_all_permissions: true,
+        main_module_path: absolute_path.to_string_lossy().to_string(),
     };
 
     // Spawn the JS runtime thread

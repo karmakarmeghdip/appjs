@@ -1,126 +1,26 @@
 // JS Thread Module
-// Handles the Deno JavaScript runtime execution
+// Handles the JavaScript runtime execution using deno_core
 
-use std::sync::mpsc::TryRecvError;
+mod console_ops;
+mod ipc_ops;
 
-use crate::ipc::{JsCommand, JsCommandSender, JsThreadChannels, LogLevel, UiEvent, UiEventReceiver};
+use std::rc::Rc;
+use std::sync::{Arc, Mutex};
+
+use deno_core::{FsModuleLoader, JsRuntime, ModuleSpecifier, RuntimeOptions};
+
+use crate::ipc::{JsCommand, JsThreadChannels, LogLevel};
 
 /// Configuration for the JS runtime
 pub struct JsRuntimeConfig {
-    /// Path to the main JavaScript/TypeScript module to execute
+    /// Path to the main JavaScript module to execute
     pub main_module_path: String,
-    /// Whether to allow all permissions (for development)
-    pub allow_all_permissions: bool,
 }
 
 impl Default for JsRuntimeConfig {
     fn default() -> Self {
         Self {
             main_module_path: "./main.js".to_string(),
-            allow_all_permissions: true,
-        }
-    }
-}
-
-/// The JS runtime runner
-pub struct JsRuntime {
-    /// Channel to receive UI events
-    event_receiver: UiEventReceiver,
-    /// Channel to send commands to UI thread
-    command_sender: JsCommandSender,
-    /// Runtime configuration
-    #[allow(dead_code)]
-    config: JsRuntimeConfig,
-}
-
-impl JsRuntime {
-    /// Create a new JS runtime with the given channels and configuration
-    pub fn new(channels: JsThreadChannels, config: JsRuntimeConfig) -> Self {
-        Self {
-            event_receiver: channels.event_receiver,
-            command_sender: channels.command_sender,
-            config,
-        }
-    }
-
-    /// Send a command to the UI thread
-    pub fn send_command(&self, command: JsCommand) {
-        if let Err(e) = self.command_sender.send(command) {
-            eprintln!("[JS] Failed to send command: {}", e);
-        }
-    }
-
-    /// Log a message via the UI thread
-    pub fn log(&self, level: LogLevel, message: impl Into<String>) {
-        self.send_command(JsCommand::Log {
-            level,
-            message: message.into(),
-        });
-    }
-
-    /// Process any pending UI events (non-blocking)
-    pub fn process_events(&self) -> Vec<UiEvent> {
-        let mut events = Vec::new();
-        loop {
-            match self.event_receiver.try_recv() {
-                Ok(event) => events.push(event),
-                Err(TryRecvError::Empty) => break,
-                Err(TryRecvError::Disconnected) => {
-                    eprintln!("[JS] UI thread disconnected");
-                    break;
-                }
-            }
-        }
-        events
-    }
-
-    /// Run the JS runtime
-    ///
-    /// This function is async and should be run within a tokio runtime
-    pub async fn run(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.log(LogLevel::Info, "Starting JS runtime thread...");
-
-        // For now, run in standby mode - just process events
-        // Full Deno runtime integration will be added later
-        self.run_standby_loop().await
-    }
-
-    /// Run in standby mode - process events from UI thread
-    async fn run_standby_loop(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.log(LogLevel::Info, "Running in standby mode (Deno runtime not yet initialized)");
-
-        // Simple loop that processes events
-        loop {
-            let events = self.process_events();
-
-            for event in events {
-                match event {
-                    UiEvent::AppExit => {
-                        self.log(LogLevel::Info, "App exit requested, shutting down");
-                        return Ok(());
-                    }
-                    UiEvent::WindowCloseRequested => {
-                        self.log(LogLevel::Info, "Window close requested");
-                        return Ok(());
-                    }
-                    UiEvent::WidgetAction { widget_id, action } => {
-                        self.log(
-                            LogLevel::Debug,
-                            format!("Widget action: {} - {:?}", widget_id, action),
-                        );
-                        // Echo back a command to demonstrate IPC
-                        self.send_command(JsCommand::SetTitle(format!(
-                            "AppJS - Button clicked!"
-                        )));
-                    }
-                    _ => {
-                        // Process other events
-                    }
-                }
-            }
-
-            // Small sleep to avoid busy-waiting
-            tokio::time::sleep(tokio::time::Duration::from_millis(16)).await;
         }
     }
 }
@@ -130,18 +30,86 @@ impl JsRuntime {
 /// This function creates a new tokio runtime and runs the JS event loop.
 /// It should be called from `std::thread::spawn`.
 pub fn run_js_thread(channels: JsThreadChannels, config: JsRuntimeConfig) {
-    // Create a new tokio runtime for this thread
-    let runtime = tokio::runtime::Builder::new_current_thread()
+    let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("Failed to create tokio runtime");
 
-    let js_runtime = JsRuntime::new(channels, config);
-
-    // Run the JS runtime
-    runtime.block_on(async {
-        if let Err(e) = js_runtime.run().await {
+    rt.block_on(async move {
+        if let Err(e) = run_js_runtime(channels, config).await {
             eprintln!("[JS] Runtime error: {:?}", e);
         }
     });
+}
+
+/// The async inner function that sets up and runs the JS runtime
+async fn run_js_runtime(
+    channels: JsThreadChannels,
+    config: JsRuntimeConfig,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let command_sender = channels.command_sender;
+    let event_receiver = channels.event_receiver;
+
+    // Helper to log via IPC
+    let log = |msg: &str| {
+        let _ = command_sender.send(JsCommand::Log {
+            level: LogLevel::Info,
+            message: msg.to_string(),
+        });
+    };
+
+    log("Initializing JS runtime...");
+
+    // Resolve the module path to a file:// URL
+    let module_path = std::path::Path::new(&config.main_module_path);
+    let main_module = ModuleSpecifier::from_file_path(module_path)
+        .map_err(|_| format!("Invalid module path: {}", config.main_module_path))?;
+
+    log(&format!("Loading module: {}", main_module));
+
+    // Prepare the IPC extension with state injected into OpState
+    let shared_receiver = ipc_ops::SharedEventReceiver(Arc::new(Mutex::new(event_receiver)));
+    let sender_for_state = command_sender.clone();
+
+    let mut ipc_ext = ipc_ops::appjs_ipc::init();
+    ipc_ext.op_state_fn = Some(Box::new(move |state| {
+        state.put(sender_for_state);
+        state.put(shared_receiver);
+    }));
+
+    // Create the deno_core JsRuntime
+    let mut runtime = JsRuntime::new(RuntimeOptions {
+        module_loader: Some(Rc::new(FsModuleLoader)),
+        extensions: vec![
+            console_ops::appjs_console::init(),
+            ipc_ext,
+        ],
+        ..Default::default()
+    });
+
+    log("JS runtime initialized, executing module...");
+
+    // Load and evaluate the main module
+    let mod_id = runtime
+        .load_main_es_module(&main_module)
+        .await
+        .map_err(|e| format!("Failed to load module '{}': {}", main_module, e))?;
+
+    let result = runtime.mod_evaluate(mod_id);
+
+    // Run the event loop — this processes the module evaluation and any async ops
+    // (including the event listener loop if the user registered any listeners via appjs.events.on())
+    runtime
+        .run_event_loop(Default::default())
+        .await
+        .map_err(|e| format!("Event loop error: {}", e))?;
+
+    // Await the module evaluation result
+    result
+        .await
+        .map_err(|e| format!("Module evaluation error: {}", e))?;
+
+    log("JS runtime finished");
+
+    Ok(())
 }
