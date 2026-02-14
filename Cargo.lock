@@ -283,6 +283,8 @@ dependencies = [
  "deno_runtime",
  "masonry",
  "masonry_winit",
+ "sys_traits",
+ "tokio",
  "winit",
 ]
 
