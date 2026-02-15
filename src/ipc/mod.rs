@@ -11,23 +11,19 @@ pub use events::*;
 
 #[cfg(test)]
 mod tests {
+    use masonry_winit::app::WindowId;
+
     use super::*;
 
     #[test]
-    fn test_channel_communication() {
-        let channels = IpcChannels::new();
+    fn test_ui_event_channel() {
+        // Test that UI events can be sent and received through the mpsc channel
+        let (tx, rx) = std::sync::mpsc::channel::<UiEvent>();
 
-        channels
-            .ui_thread
-            .event_sender
-            .send(UiEvent::MouseClick { x: 100.0, y: 200.0 })
+        tx.send(UiEvent::MouseClick { x: 100.0, y: 200.0 })
             .expect("Failed to send UI event");
 
-        let event = channels
-            .js_thread
-            .event_receiver
-            .recv()
-            .expect("Failed to receive UI event");
+        let event = rx.recv().expect("Failed to receive UI event");
 
         match event {
             UiEvent::MouseClick { x, y } => {
@@ -36,24 +32,21 @@ mod tests {
             }
             _ => panic!("Unexpected event type"),
         }
+    }
 
-        channels
-            .js_thread
-            .command_sender
-            .send(JsCommand::SetTitle("Test Title".to_string()))
-            .expect("Failed to send JS command");
+    #[test]
+    fn test_js_command_action_debug() {
+        let cmd = JsCommand::SetTitle("Test".to_string());
+        let action = JsCommandAction(cmd);
+        let debug_str = format!("{:?}", action);
+        assert!(debug_str.contains("JsCommandAction"));
+        assert!(debug_str.contains("SetTitle"));
+    }
 
-        let command = channels
-            .ui_thread
-            .command_receiver
-            .recv()
-            .expect("Failed to receive JS command");
-
-        match command {
-            JsCommand::SetTitle(title) => {
-                assert_eq!(title, "Test Title");
-            }
-            _ => panic!("Unexpected command type"),
-        }
+    #[test]
+    fn test_window_id_creation() {
+        let id1 = WindowId::next();
+        let id2 = WindowId::next();
+        assert_ne!(id1, id2);
     }
 }

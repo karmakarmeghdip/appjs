@@ -4,7 +4,8 @@
 // - Main Thread (UI): Owns the window and widget tree via masonry_winit
 // - Background Thread (JS): Runs the Deno JavaScript runtime
 //
-// Communication between threads is handled via std::sync::mpsc channels.
+// Communication between threads uses EventLoopProxy (JS→UI, zero polling)
+// and std::sync::mpsc (UI→JS, for UI events).
 
 // On Windows platform, don't show a console when opening the app.
 #![windows_subsystem = "windows"]
@@ -17,12 +18,9 @@ use std::thread;
 
 use ipc::IpcChannels;
 use js_thread::{JsRuntimeConfig, run_js_thread};
-use ui_thread::run_ui;
+use ui_thread::{prepare_ui, run_ui_blocking};
 
 fn main() {
-    // Initialize logging/tracing if needed
-    // tracing_subscriber::fmt::init();
-
     println!("AppJS Starting...");
 
     // Parse CLI arguments: expect a JS/TS file path as the first argument
@@ -52,10 +50,15 @@ fn main() {
 
     println!("[Main] Running script: {}", absolute_path.display());
 
-    // Create IPC channels for communication between threads
-    let channels = IpcChannels::new();
+    // Phase 1: Build the EventLoop and extract EventLoopProxy (non-blocking).
+    // This must happen before spawning the JS thread so the proxy can be shared.
+    let (ui_setup, event_loop) = prepare_ui();
 
-    // Extract the channel endpoints for each thread
+    // Phase 2: Create IPC channels with the EventLoopProxy.
+    // JS→UI commands use EventLoopProxy (immediately wakes the event loop, zero polling).
+    // UI→JS events use mpsc channels.
+    let channels = IpcChannels::new(ui_setup.proxy, ui_setup.window_id);
+
     let ui_channels = channels.ui_thread;
     let js_channels = channels.js_thread;
 
@@ -64,8 +67,7 @@ fn main() {
         main_module_path: absolute_path.to_string_lossy().to_string(),
     };
 
-    // Spawn the JS runtime thread
-    // This thread will run the Deno runtime and process JS code
+    // Phase 3: Spawn the JS runtime thread with EventLoopProxy-based command sender.
     let js_thread_handle = thread::Builder::new()
         .name("js-runtime".to_string())
         .spawn(move || {
@@ -75,14 +77,12 @@ fn main() {
         })
         .expect("Failed to spawn JS runtime thread");
 
-    // Run the UI on the main thread
-    // This blocks until the window is closed
-    // The main thread MUST run the UI due to platform requirements (macOS, etc.)
+    // Phase 4: Run the UI event loop on the main thread (blocks forever).
+    // The main thread MUST run the UI due to platform requirements (macOS, etc.).
     println!("[Main] Starting UI on main thread");
-    run_ui(ui_channels.event_sender, ui_channels.command_receiver);
+    run_ui_blocking(event_loop, ui_setup.window_id, ui_channels.event_sender);
 
-    // Wait for the JS thread to finish
-    // This happens after the UI closes
+    // Wait for the JS thread to finish after the UI closes
     println!("[Main] UI closed, waiting for JS thread to finish...");
     if let Err(e) = js_thread_handle.join() {
         eprintln!("[Main] JS thread panicked: {:?}", e);

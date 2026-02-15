@@ -1,58 +1,29 @@
-use std::sync::mpsc::TryRecvError;
-
 use masonry::core::{ErasedAction, WidgetId};
-use masonry::widgets::ButtonPress;
 use masonry_winit::app::{AppDriver, DriverCtx, WindowId};
 
-use super::handler::handle_js_command;
-use crate::ipc::{JsCommandReceiver, UiEvent, UiEventSender, WidgetActionKind};
+use crate::ipc::{JsCommandAction, UiEventSender};
 
-/// The main application driver that handles UI events and commands
+use super::handler::{WidgetManager, handle_js_command};
+
+/// Application driver that bridges JS runtime commands with the masonry UI.
+///
+/// When on_action is called with a JsCommandAction (sent via EventLoopProxy from the JS thread),
+/// it mutates the widget tree to create, update, or remove widgets.
 pub struct AppJsDriver {
-    /// The main window ID
+    /// The window ID for the main application window
     pub window_id: WindowId,
-    /// Channel to send UI events to JS thread
-    event_sender: UiEventSender,
-    /// Channel to receive commands from JS thread
-    command_receiver: JsCommandReceiver,
+    /// Sender for UI events back to the JS thread
+    pub event_sender: UiEventSender,
+    /// Manages JS widget ID → masonry WidgetId mapping
+    pub widget_manager: WidgetManager,
 }
 
 impl AppJsDriver {
-    /// Create a new AppJsDriver with the given channels
-    pub fn new(
-        window_id: WindowId,
-        event_sender: UiEventSender,
-        command_receiver: JsCommandReceiver,
-    ) -> Self {
+    pub fn new(window_id: WindowId, event_sender: UiEventSender) -> Self {
         Self {
             window_id,
             event_sender,
-            command_receiver,
-        }
-    }
-
-    /// Process any pending commands from the JS thread
-    fn process_js_commands(&mut self, _ctx: &mut DriverCtx<'_, '_>) {
-        loop {
-            match self.command_receiver.try_recv() {
-                Ok(command) => {
-                    handle_js_command(self, command);
-                }
-                Err(TryRecvError::Empty) => {
-                    break;
-                }
-                Err(TryRecvError::Disconnected) => {
-                    eprintln!("JS thread disconnected");
-                    break;
-                }
-            }
-        }
-    }
-
-    /// Send a UI event to the JS thread
-    fn send_event(&self, event: UiEvent) {
-        if let Err(e) = self.event_sender.send(event) {
-            eprintln!("Failed to send UI event: {}", e);
+            widget_manager: WidgetManager::new(),
         }
     }
 }
@@ -62,23 +33,29 @@ impl AppDriver for AppJsDriver {
         &mut self,
         window_id: WindowId,
         ctx: &mut DriverCtx<'_, '_>,
-        widget_id: WidgetId,
+        _widget_id: WidgetId,
         action: ErasedAction,
     ) {
-        debug_assert_eq!(window_id, self.window_id, "unknown window");
-
-        // Process any pending JS commands
-        self.process_js_commands(ctx);
-
-        // Handle widget actions
-        if action.is::<ButtonPress>() {
-            println!("[UI] Button pressed: {:?}", widget_id);
-            self.send_event(UiEvent::WidgetAction {
-                widget_id: format!("{:?}", widget_id),
-                action: WidgetActionKind::Click,
-            });
+        // Check if this action is a JsCommandAction sent via EventLoopProxy
+        if let Some(js_action) = action.downcast_ref::<JsCommandAction>() {
+            // Clone the command so we can process it (action is borrowed)
+            let cmd = js_action.0.clone();
+            let render_root = ctx.render_root(window_id);
+            handle_js_command(
+                cmd,
+                window_id,
+                render_root,
+                &mut self.widget_manager,
+                &self.event_sender,
+            );
         } else {
-            eprintln!("Unexpected action {:?}", action);
+            // Regular widget action (e.g., button click) — could send to JS event system
+            println!(
+                "[UI] Widget action on {:?} in window {:?}: {:?}",
+                _widget_id,
+                window_id,
+                action.type_name()
+            );
         }
     }
 }

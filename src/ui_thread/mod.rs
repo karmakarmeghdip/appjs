@@ -8,17 +8,45 @@ pub mod layout;
 use masonry::core::NewWidget;
 use masonry::dpi::LogicalSize;
 use masonry::theme::default_property_set;
-use masonry_winit::app::NewWindow;
+use masonry_winit::app::{EventLoopProxy, NewWindow, WindowId};
 use masonry_winit::winit::window::Window;
 
 use self::driver::AppJsDriver;
+use self::handler::ROOT_FLEX_TAG;
 use self::layout::create_initial_ui;
-use crate::ipc::{JsCommandReceiver, UiEventSender};
+use crate::ipc::UiEventSender;
 
-/// Run the UI application on the main thread
-pub fn run_ui(event_sender: UiEventSender, command_receiver: JsCommandReceiver) {
+/// Holds the information needed to set up IPC before the event loop blocks.
+pub struct UiSetup {
+    pub window_id: WindowId,
+    pub proxy: EventLoopProxy,
+}
+
+/// Prepare the UI: build the EventLoop and extract the EventLoopProxy.
+/// Returns UiSetup so the caller can create IPC channels and spawn the JS thread
+/// before calling `run_ui_blocking()`.
+pub fn prepare_ui() -> (UiSetup, masonry_winit::app::EventLoop) {
+    let window_id = WindowId::next();
+
+    // Build the event loop and extract a proxy before it starts running.
+    let event_loop = masonry_winit::app::EventLoop::with_user_event()
+        .build()
+        .expect("Failed to build event loop");
+
+    let proxy = event_loop.create_proxy();
+
+    let setup = UiSetup { window_id, proxy };
+    (setup, event_loop)
+}
+
+/// Run the UI application on the main thread (blocks forever).
+/// Must be called after the JS thread has been spawned with the EventLoopProxy.
+pub fn run_ui_blocking(
+    event_loop: masonry_winit::app::EventLoop,
+    window_id: WindowId,
+    event_sender: UiEventSender,
+) {
     let window_size = LogicalSize::new(800.0, 600.0);
-    let window_id = masonry_winit::app::WindowId::next();
 
     let window_attributes = Window::default_attributes()
         .with_title("AppJS - JavaScript Desktop Runtime")
@@ -26,17 +54,15 @@ pub fn run_ui(event_sender: UiEventSender, command_receiver: JsCommandReceiver) 
         .with_min_inner_size(LogicalSize::new(400.0, 300.0))
         .with_inner_size(window_size);
 
-    let driver = AppJsDriver::new(window_id, event_sender, command_receiver);
+    let driver = AppJsDriver::new(window_id, event_sender);
     let main_widget = create_initial_ui();
 
-    let event_loop = masonry_winit::app::EventLoop::with_user_event();
-
-    masonry_winit::app::run(
+    masonry_winit::app::run_with(
         event_loop,
         vec![NewWindow::new_with_id(
             window_id,
             window_attributes,
-            NewWidget::new(main_widget).erased(),
+            NewWidget::new_with_tag(main_widget, ROOT_FLEX_TAG).erased(),
         )],
         driver,
         default_property_set(),
