@@ -1,7 +1,7 @@
 use masonry::core::{ErasedAction, WidgetId};
 use masonry_winit::app::{AppDriver, DriverCtx, WindowId};
 
-use crate::ipc::{JsCommandAction, UiEventSender};
+use crate::ipc::{JsCommandAction, UiEvent, UiEventSender, WidgetActionKind};
 
 use super::handler::{WidgetManager, handle_js_command};
 
@@ -49,12 +49,29 @@ impl AppDriver for AppJsDriver {
                 &self.event_sender,
             );
         } else {
-            // Regular widget action (e.g., button click) — could send to JS event system
+            let type_name = action.type_name();
+            // Find which JS widget this is
+            let mut js_id = None;
+            for (id, info) in &self.widget_manager.widgets {
+                if info.widget_id == _widget_id {
+                    js_id = Some(id.clone());
+                    break;
+                }
+            }
+
+            if let Some(id) = js_id {
+                if type_name.contains("ButtonPress") {
+                    let _ = self.event_sender.send(UiEvent::WidgetAction {
+                        widget_id: id,
+                        action: WidgetActionKind::Click,
+                    });
+                }
+            }
+
+            // Always log the action for debugging
             println!(
                 "[UI] Widget action on {:?} in window {:?}: {:?}",
-                _widget_id,
-                window_id,
-                action.type_name()
+                _widget_id, window_id, type_name
             );
         }
     }

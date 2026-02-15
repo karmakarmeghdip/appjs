@@ -114,6 +114,7 @@ pub fn handle_js_command(
             id,
             kind,
             parent_id,
+            text,
         } => {
             println!(
                 "[UI] Creating widget: id={}, kind={:?}, parent={:?}",
@@ -128,7 +129,8 @@ pub fn handle_js_command(
 
             match &kind {
                 WidgetKind::Label => {
-                    let label = Label::new("[Label]")
+                    let label_text = text.as_deref().unwrap_or("[Label]");
+                    let label = Label::new(label_text)
                         .with_style(StyleProperty::FontSize(30.0))
                         .with_style(StyleProperty::FontStack(FontStack::Single(
                             FontFamily::Generic(GenericFamily::SansSerif),
@@ -153,7 +155,8 @@ pub fn handle_js_command(
                 }
 
                 WidgetKind::Button => {
-                    let label = Label::new("Button")
+                    let btn_text = text.as_deref().unwrap_or("Button");
+                    let label = Label::new(btn_text)
                         .with_style(StyleProperty::FontSize(20.0))
                         .with_style(StyleProperty::FontStack(FontStack::Single(
                             FontFamily::Generic(GenericFamily::SansSerif),
@@ -201,7 +204,9 @@ pub fn handle_js_command(
                         "[UI] Widget kind {:?} not yet implemented, creating Label as fallback",
                         kind
                     );
-                    let label = Label::new(format!("[{:?}]", kind))
+                    let fallback = format!("[{:?}]", kind);
+                    let label_text = text.as_deref().unwrap_or(&fallback);
+                    let label = Label::new(label_text)
                         .with_style(StyleProperty::FontSize(20.0))
                         .with_style(StyleProperty::FontStack(FontStack::Single(
                             FontFamily::Generic(GenericFamily::SansSerif),

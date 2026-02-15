@@ -32,6 +32,7 @@ pub fn op_create_widget(
     #[string] id: &str,
     #[string] kind: &str,
     #[string] parent_id: Option<String>,
+    #[string] text: Option<String>,
 ) -> Result<(), JsErrorBox> {
     let widget_kind = match kind {
         "Label" | "label" => WidgetKind::Label,
@@ -48,6 +49,7 @@ pub fn op_create_widget(
             id: id.to_string(),
             kind: widget_kind,
             parent_id,
+            text,
         },
     )
 }

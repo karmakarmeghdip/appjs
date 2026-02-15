@@ -11,6 +11,7 @@ pub enum JsCommand {
         id: String,
         kind: WidgetKind,
         parent_id: Option<String>,
+        text: Option<String>,
     },
 
     /// Update an existing widget

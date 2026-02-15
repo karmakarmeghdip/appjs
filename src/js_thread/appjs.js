@@ -77,8 +77,8 @@ globalThis.appjs = {
 
     // ---- UI / Widget management ----
     ui: {
-        createWidget: (id, kind, parentId) =>
-            core.ops.op_create_widget(id, kind, parentId ?? null),
+        createWidget: (id, kind, parentId, text) =>
+            core.ops.op_create_widget(id, kind, parentId ?? null, text ?? null),
         removeWidget: (id) => core.ops.op_remove_widget(id),
         setWidgetText: (id, text) => core.ops.op_set_widget_text(id, text),
         setWidgetVisible: (id, visible) => core.ops.op_set_widget_visible(id, visible),
