@@ -1,3 +1,6 @@
 /target
 .direnv
 .ref
+/node_modules
+/.vscode
+/deno.lock

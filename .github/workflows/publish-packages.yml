@@ -1,0 +1,51 @@
+name: Publish npm packages
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package-dir:
+          - packages/appjs-runtime
+          - packages/solid-renderer
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Verify package metadata
+        working-directory: ${{ matrix.package-dir }}
+        run: |
+          node -e "const p=require('./package.json'); if (p.private) { throw new Error('Package is private: ' + p.name); } if (!p.name || !p.version) { throw new Error('Missing name/version in package.json'); }"
+
+      - name: Publish to npm (skip if version exists)
+        working-directory: ${{ matrix.package-dir }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is already published. Skipping."
+            exit 0
+          fi
+
+          npm publish --access public --provenance

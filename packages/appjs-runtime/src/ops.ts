@@ -23,7 +23,7 @@ type CoreOps = {
     op_wait_for_event(): Promise<string>;
 };
 
-const core = (globalThis as { Deno: { core: { ops: CoreOps } } }).Deno.core;
+const core = (globalThis as unknown as { Deno: { core: { ops: CoreOps } } }).Deno.core;
 const ops = core.ops;
 
 export const rawOps = ops;

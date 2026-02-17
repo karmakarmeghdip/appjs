@@ -5,23 +5,31 @@
 > Powered by Rust, V8, and GPU-accelerated rendering.
 
 > [!WARNING]
-> **This project is in very early stages of development.** APIs are unstable and will change. It is not yet suitable for production use. Contributions, feedback, and ideas are very welcome.
+> **This project is in very early stages of development.** APIs are unstable and
+> will change. It is not yet suitable for production use. Contributions,
+> feedback, and ideas are very welcome.
 
 > [!NOTE]
-> **The name `appjs` is a placeholder** and we're open to suggestions for a better name. If you have ideas, feel free to open an issue!
+> **The name `appjs` is a placeholder** and we're open to suggestions for a
+> better name. If you have ideas, feel free to open an issue!
 
 ---
 
 ## What is appjs?
 
-appjs is a lightweight desktop application runtime that lets you build native, GPU-rendered UIs using JavaScript or TypeScript. Instead of bundling a full web browser (like Electron), appjs pairs a minimal V8-based JS runtime ([Deno Core](https://github.com/denoland/deno_core)) with a native widget toolkit ([Masonry](https://github.com/linebender/xilem)), giving you:
+appjs is a lightweight desktop application runtime that lets you build native,
+GPU-rendered UIs using JavaScript or TypeScript. Instead of bundling a full web
+browser (like Electron), appjs pairs a minimal V8-based JS runtime
+([Deno Core](https://github.com/denoland/deno_core)) with a native widget
+toolkit ([Masonry](https://github.com/linebender/xilem)), giving you:
 
 - **Small binary size** -- no bundled Chromium
-- **Native rendering** -- GPU-accelerated via [Vello](https://github.com/linebender/vello), not a web view
+- **Native rendering** -- GPU-accelerated via
+  [Vello](https://github.com/linebender/vello), not a web view
 - **Fast startup** -- milliseconds, not seconds
 - **Low memory footprint** -- native widgets, not a DOM
 
-Think of it as: *what if Deno and a native UI toolkit had a baby?*
+Think of it as: _what if Deno and a native UI toolkit had a baby?_
 
 ## Quick Start
 
@@ -77,7 +85,8 @@ cargo run -- hello.js
 
 ## Architecture
 
-appjs uses a strict **dual-threaded architecture** to keep the UI responsive at all times:
+appjs uses a strict **dual-threaded architecture** to keep the UI responsive at
+all times:
 
 ```
 +---------------------------+          +---------------------------+
@@ -98,15 +107,18 @@ appjs uses a strict **dual-threaded architecture** to keep the UI responsive at 
 
 ### Main Thread (UI Thread)
 
-Owns the window and the widget tree. Handles all rendering and user input. This thread **never blocks** -- no I/O, no heavy computation, no JS execution.
+Owns the window and the widget tree. Handles all rendering and user input. This
+thread **never blocks** -- no I/O, no heavy computation, no JS execution.
 
 - **Window management**: `winit` event loop
-- **Widget tree**: `masonry` (from the [Xilem](https://github.com/linebender/xilem) project)
+- **Widget tree**: `masonry` (from the
+  [Xilem](https://github.com/linebender/xilem) project)
 - **Rendering**: Vello (GPU-accelerated 2D rendering)
 
 ### Background Thread (JS Runtime)
 
-Runs the V8 JavaScript engine via `deno_core`. Executes all application logic, manages state, and sends commands to the UI thread.
+Runs the V8 JavaScript engine via `deno_core`. Executes all application logic,
+manages state, and sends commands to the UI thread.
 
 - **Runtime**: `deno_core` with custom ops
 - **Module system**: ES modules
@@ -116,12 +128,13 @@ Runs the V8 JavaScript engine via `deno_core`. Executes all application logic, m
 
 The two threads communicate via asynchronous, typed message passing:
 
-| Direction | Mechanism | Purpose |
-|-----------|-----------|---------|
-| **JS -> UI** | `EventLoopProxy` | Widget creation, styling, updates. Zero-polling, immediately wakes the event loop. |
-| **UI -> JS** | `mpsc` channel | User interactions (clicks, input, resize). Delivered via async `op_wait_for_event`. |
+| Direction    | Mechanism        | Purpose                                                                             |
+| ------------ | ---------------- | ----------------------------------------------------------------------------------- |
+| **JS -> UI** | `EventLoopProxy` | Widget creation, styling, updates. Zero-polling, immediately wakes the event loop.  |
+| **UI -> JS** | `mpsc` channel   | User interactions (clicks, input, resize). Delivered via async `op_wait_for_event`. |
 
-All messages are strongly typed Rust enums (`JsCommand`, `UiEvent`) -- no raw strings cross the thread boundary.
+All messages are strongly typed Rust enums (`JsCommand`, `UiEvent`) -- no raw
+strings cross the thread boundary.
 
 ## API Overview
 
@@ -167,7 +180,7 @@ appjs.column("id", parentId, { gap: 8, crossAxisAlignment: "fill" });
 appjs.flex("id", parentId, { direction: "row", gap: 12 });
 appjs.box("id", parentId, { width: 100, height: 100 });
 appjs.zstack("id", parentId);
-appjs.portal("id", parentId);  // scrollable container
+appjs.portal("id", parentId); // scrollable container
 
 // Feedback
 appjs.progressBar("id", parentId, 0.5);
@@ -250,55 +263,71 @@ appjs.ui.removeWidget("widget1");
 
 ## Available Widgets
 
-| Widget | Description | Key Properties |
-|--------|-------------|----------------|
-| `label` | Static text display | `fontSize`, `color`, `fontWeight` |
-| `button` | Clickable button | Emits `click` action |
-| `checkbox` | Toggle with label | `checked`, emits `valueChanged` |
-| `textInput` | Single-line text field | `placeholder` |
-| `slider` | Range input | `min`, `max`, `value`, emits `valueChanged` |
-| `progressBar` | Progress indicator | `progress` (0.0 - 1.0) |
-| `spinner` | Loading indicator | Animated |
-| `prose` | Selectable read-only text | Same text styles as label |
-| `flex` / `row` / `column` | Flexbox layout | `direction`, `gap`, `crossAxisAlignment` |
-| `box` (SizedBox) | Fixed-size container | `width`, `height` |
-| `zstack` | Overlay/stack container | Children overlap |
-| `portal` | Scrollable container | Wraps content |
+| Widget                    | Description               | Key Properties                              |
+| ------------------------- | ------------------------- | ------------------------------------------- |
+| `label`                   | Static text display       | `fontSize`, `color`, `fontWeight`           |
+| `button`                  | Clickable button          | Emits `click` action                        |
+| `checkbox`                | Toggle with label         | `checked`, emits `valueChanged`             |
+| `textInput`               | Single-line text field    | `placeholder`                               |
+| `slider`                  | Range input               | `min`, `max`, `value`, emits `valueChanged` |
+| `progressBar`             | Progress indicator        | `progress` (0.0 - 1.0)                      |
+| `spinner`                 | Loading indicator         | Animated                                    |
+| `prose`                   | Selectable read-only text | Same text styles as label                   |
+| `flex` / `row` / `column` | Flexbox layout            | `direction`, `gap`, `crossAxisAlignment`    |
+| `box` (SizedBox)          | Fixed-size container      | `width`, `height`                           |
+| `zstack`                  | Overlay/stack container   | Children overlap                            |
+| `portal`                  | Scrollable container      | Wraps content                               |
 
 ## Examples
 
 See the [`examples/`](examples/) directory:
 
-- **[`test_ui.js`](examples/test_ui.js)** -- Widget gallery showcasing every widget type, styling, and event handling
-- **[`styled_counter.js`](examples/styled_counter.js)** -- Counter app with dynamic styling
+- **[`test_ui.js`](examples/test_ui.js)** -- Widget gallery showcasing every
+  widget type, styling, and event handling
+- **[`styled_counter.js`](examples/styled_counter.js)** -- Counter app with
+  dynamic styling
 - **[`counter.js`](examples/counter.js)** -- Minimal counter example
+- **[`solid_counter.ts`](examples/solid_counter.ts)** -- SolidJS-powered counter
+  using `@appjs/solid-renderer`
+- **[`solid_counter.tsx`](examples/solid_counter.tsx)** -- Solid TSX example
+  rendered through `@appjs/solid-renderer` (declarative accessor props for
+  `text`, `style`, and dynamic label state)
 
 ## Roadmap
 
 This project is in its early stages. Here's what's planned:
 
 - [ ] **TypeScript support** -- Run `.ts` files directly with type checking
-- [ ] **Hot Module Replacement (HMR)** -- Live-reload UI changes during development
-- [ ] **Rust extension API** -- Write native Rust plugins that expose new capabilities to JS (custom widgets, system APIs, hardware access)
-- [ ] **Remote script loading** -- Run scripts from HTTPS URLs, npm, and JSR registries
-- [ ] **Permission system** -- Fine-grained permissions (file system, network, env) with secure defaults, similar to Deno's model
-- [ ] **Strict sandboxing** -- Apps run in a sandbox by default with no access to the system unless explicitly granted
-- [ ] **Shebang support** -- Add `#!/usr/bin/env appjs` to scripts and run them directly as executables
+- [ ] **Hot Module Replacement (HMR)** -- Live-reload UI changes during
+      development
+- [ ] **Rust extension API** -- Write native Rust plugins that expose new
+      capabilities to JS (custom widgets, system APIs, hardware access)
+- [ ] **Remote script loading** -- Run scripts from HTTPS URLs, npm, and JSR
+      registries
+- [ ] **Permission system** -- Fine-grained permissions (file system, network,
+      env) with secure defaults, similar to Deno's model
+- [ ] **Strict sandboxing** -- Apps run in a sandbox by default with no access
+      to the system unless explicitly granted
+- [ ] **Shebang support** -- Add `#!/usr/bin/env appjs` to scripts and run them
+      directly as executables
 - [ ] **More widgets** -- Tables, trees, menus, dialogs, tabs, images
-- [ ] **Multi-window support** -- Open and manage multiple windows from a single script
-- [ ] **Platform integration** -- System tray, notifications, file dialogs, clipboard
-- [ ] **Accessibility** -- Full keyboard navigation and screen reader support (partially supported via Masonry)
+- [ ] **Multi-window support** -- Open and manage multiple windows from a single
+      script
+- [ ] **Platform integration** -- System tray, notifications, file dialogs,
+      clipboard
+- [ ] **Accessibility** -- Full keyboard navigation and screen reader support
+      (partially supported via Masonry)
 
 ## Tech Stack
 
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| JS Engine | [Deno Core](https://github.com/denoland/deno_core) (V8) | JavaScript/TypeScript execution |
-| UI Framework | [Masonry](https://github.com/linebender/xilem) | Native widget tree |
-| Windowing | [winit](https://github.com/rust-windowing/winit) | Cross-platform window management |
-| 2D Rendering | [Vello](https://github.com/linebender/vello) | GPU-accelerated vector graphics |
-| Text Layout | [Parley](https://github.com/linebender/parley) | Text shaping and layout |
-| Language | Rust | Performance, safety, native access |
+| Component    | Technology                                              | Purpose                            |
+| ------------ | ------------------------------------------------------- | ---------------------------------- |
+| JS Engine    | [Deno Core](https://github.com/denoland/deno_core) (V8) | JavaScript/TypeScript execution    |
+| UI Framework | [Masonry](https://github.com/linebender/xilem)          | Native widget tree                 |
+| Windowing    | [winit](https://github.com/rust-windowing/winit)        | Cross-platform window management   |
+| 2D Rendering | [Vello](https://github.com/linebender/vello)            | GPU-accelerated vector graphics    |
+| Text Layout  | [Parley](https://github.com/linebender/parley)          | Text shaping and layout            |
+| Language     | Rust                                                    | Performance, safety, native access |
 
 ## Contributing
 
@@ -317,4 +346,4 @@ TBD
 
 ---
 
-*Built with Rust, V8, and the Linebender ecosystem.*
+_Built with Rust, V8, and the Linebender ecosystem._

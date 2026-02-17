@@ -174,6 +174,16 @@ fn transpile(
     media_type: MediaType,
     source_maps: &SourceMapStore,
 ) -> Result<String, JsErrorBox> {
+    let jsx_runtime = match media_type {
+        MediaType::Jsx | MediaType::Tsx => {
+            Some(deno_ast::JsxRuntime::Classic(deno_ast::JsxClassicOptions {
+                factory: "jsx".to_string(),
+                fragment_factory: "Fragment".to_string(),
+            }))
+        }
+        _ => None,
+    };
+
     let parsed = deno_ast::parse_module(ParseParams {
         specifier: specifier.clone(),
         text: code.into(),
@@ -189,6 +199,7 @@ fn transpile(
             &deno_ast::TranspileOptions {
                 imports_not_used_as_values: deno_ast::ImportsNotUsedAsValues::Remove,
                 decorators: deno_ast::DecoratorsTranspileOption::Ecma,
+                jsx: jsx_runtime,
                 ..Default::default()
             },
             &deno_ast::TranspileModuleOptions { module_kind: None },
