@@ -4,7 +4,8 @@ use masonry_winit::app::{AppDriver, DriverCtx, WindowId};
 
 use crate::ipc::{JsCommandAction, UiEvent, UiEventSender, WidgetActionKind};
 
-use super::handler::{WidgetManager, handle_js_command};
+use super::widget_manager::{WidgetManager, WidgetInfo};
+use super::handler::handle_js_command;
 
 /// Application driver that bridges JS runtime commands with the masonry UI.
 ///
@@ -31,7 +32,7 @@ impl AppJsDriver {
             .widgets
             .iter()
             .find(|(_, info)| info.widget_id == widget_id)
-            .map(|(id, _)| id.clone())
+            .map(|(id, _): (&String, &WidgetInfo)| id.clone())
     }
 }
 

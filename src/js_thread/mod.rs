@@ -2,7 +2,9 @@
 // Handles the JavaScript runtime execution using deno_core
 
 mod console_ops;
+pub mod event_serializer;
 pub mod ipc_ops;
+pub mod style_parser;
 
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};

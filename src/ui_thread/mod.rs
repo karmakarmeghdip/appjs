@@ -1,9 +1,12 @@
 // UI Thread Module
 // Handles the main window, widget tree, and rendering using masonry_winit
 
+pub mod creation;
 pub mod driver;
 pub mod handler;
 pub mod layout;
+pub mod styles;
+pub mod widget_manager;
 
 use masonry::core::NewWidget;
 use masonry::dpi::LogicalSize;
@@ -12,8 +15,8 @@ use masonry_winit::app::{EventLoopProxy, NewWindow, WindowId};
 use masonry_winit::winit::window::Window;
 
 use self::driver::AppJsDriver;
-use self::handler::ROOT_FLEX_TAG;
 use self::layout::create_initial_ui;
+use self::widget_manager::ROOT_FLEX_TAG;
 use crate::ipc::UiEventSender;
 
 /// Holds the information needed to set up IPC before the event loop blocks.

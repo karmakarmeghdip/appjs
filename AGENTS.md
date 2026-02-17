@@ -165,3 +165,10 @@ When tasked with adding a new feature (e.g., "Add a button that logs to console"
 
 *   **Masonry Examples**: Masonry is part of the Xilem project. Search for usage patterns in the `linebender/xilem` repository, specifically under `masonry/examples`.
 *   **Deno Runtime**: Refer to `denoland/deno` for advanced runtime configuration, though strict adherence to `deno_runtime` crate docs is preferred.
+
+## 8. Internal Documentation
+
+For more detailed architectural overviews and refactoring logs, refer to the `docs/` directory:
+
+*   **[Codebase Structure & Architecture](docs/architecture.md)**: A comprehensive guide to the folder structure, file responsibilities, and thread interactions.
+

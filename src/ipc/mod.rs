@@ -2,10 +2,12 @@
 // Handles communication between the UI thread and JS runtime thread
 
 pub mod channels;
+pub mod color;
 pub mod commands;
 pub mod events;
 
 pub use channels::*;
+pub use color::ColorValue;
 pub use commands::*;
 pub use events::*;
 
@@ -20,17 +22,22 @@ mod tests {
         // Test that UI events can be sent and received through the mpsc channel
         let (tx, rx) = std::sync::mpsc::channel::<UiEvent>();
 
-        tx.send(UiEvent::MouseClick { x: 100.0, y: 200.0 })
-            .expect("Failed to send UI event");
+        tx.send(UiEvent::WidgetAction {
+            widget_id: "test".to_string(),
+            action: WidgetActionKind::Click,
+        })
+        .expect("Failed to send UI event");
 
         let event = rx.recv().expect("Failed to receive UI event");
 
         match event {
-            UiEvent::MouseClick { x, y } => {
-                assert_eq!(x, 100.0);
-                assert_eq!(y, 200.0);
+            UiEvent::WidgetAction { widget_id, action } => {
+                assert_eq!(widget_id, "test");
+                match action {
+                    WidgetActionKind::Click => {} // OK
+                    _ => panic!("Unexpected action type"),
+                }
             }
-            _ => panic!("Unexpected event type"),
         }
     }
 
