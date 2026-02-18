@@ -1,14 +1,9 @@
+
 import { createComponent } from "solid-js";
 import type { Component } from "solid-js";
-import type { AppJsCommonProps } from "./index.ts";
+import type { AppJsCommonProps, AppJsIntrinsicElements, AppJsJsxNode } from "./types";
 
 type JsxProps = Record<string, unknown> | null | undefined;
-
-interface AppJsJsxNode {
-    __appjsJsx: true;
-    type: string;
-    props: Record<string, unknown>;
-}
 
 function normalizeChildren(children: unknown[]): unknown {
     if (children.length === 0) return undefined;
@@ -50,21 +45,5 @@ export const jsxs = jsx;
 export const jsxDEV = jsx;
 
 export namespace JSX {
-    export interface IntrinsicElements {
-        [tagName: string]: AppJsCommonProps;
-        label: AppJsCommonProps;
-        button: AppJsCommonProps;
-        checkbox: AppJsCommonProps;
-        textInput: AppJsCommonProps;
-        slider: AppJsCommonProps;
-        progressBar: AppJsCommonProps;
-        spinner: AppJsCommonProps;
-        prose: AppJsCommonProps;
-        flex: AppJsCommonProps;
-        row: AppJsCommonProps;
-        column: AppJsCommonProps;
-        box: AppJsCommonProps;
-        zstack: AppJsCommonProps;
-        portal: AppJsCommonProps;
-    }
+    export interface IntrinsicElements extends AppJsIntrinsicElements { }
 }

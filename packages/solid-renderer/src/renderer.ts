@@ -1,0 +1,488 @@
+
+import { createRenderEffect } from "solid-js";
+import { createRenderer } from "solid-js/universal";
+import {
+  AppJsRenderer,
+  AppJsRuntime,
+  AppJsRoot,
+  AppJsHostElement,
+  AppJsHostText,
+  HostNode,
+  HostElement,
+  HostText,
+  HostParent,
+  RenderOptions,
+  WidgetActionHandler,
+  AppJsStyle,
+} from "./types";
+import {
+  DEFAULT_PARENT_ID,
+  EVENT_WILDCARD,
+} from "./constants";
+import {
+  isEventProp,
+  normalizeEventName,
+  normalizeWidgetKind,
+  mapStyleKey,
+  isNullish,
+  isPrimitiveStyleValue,
+  createEmptyStyle,
+  isAppJsJsxNode,
+  isHostNodeLike,
+  normalizeChildrenArray,
+  isReactiveAccessorProp,
+  unlinkFromParent,
+  linkIntoParent,
+} from "./utils";
+
+export function createAppJsRenderer(runtime: AppJsRuntime): AppJsRenderer {
+  const widgetNodeById = new Map<string, HostElement>();
+  const jsxNodeMap = new WeakMap<object, HostNode>();
+  let fallbackId = 0;
+  let unsubscribeEvents: (() => void) | null = null;
+
+  function nextWidgetId(prefix: string): string {
+    if (runtime.nextId) return runtime.nextId();
+    fallbackId += 1;
+    return `__solid_${prefix}_${fallbackId}`;
+  }
+
+  function ensureEventSubscription(): void {
+    if (unsubscribeEvents) return;
+
+    unsubscribeEvents = runtime.events.on(EVENT_WILDCARD, (event) => {
+      const widgetId = event.widgetId;
+      if (!widgetId) return;
+
+      const node = widgetNodeById.get(widgetId);
+      if (!node) return;
+
+      const action = event.action ?? EVENT_WILDCARD;
+      const specific = node.handlers.get(action);
+      if (specific) {
+        for (const handler of specific) handler(event);
+      }
+
+      const wildcard = node.handlers.get(EVENT_WILDCARD);
+      if (wildcard) {
+        for (const handler of wildcard) handler(event);
+      }
+    });
+  }
+
+  function createRoot(parentWidgetId: string | null = DEFAULT_PARENT_ID): AppJsRoot {
+    return {
+      nodeType: "root",
+      parent: null,
+      firstChild: null,
+      nextSibling: null,
+      mounted: true,
+      parentWidgetId,
+    };
+  }
+
+  function getParentWidgetId(parent: HostParent): string | null {
+    if (parent.nodeType === "root") return parent.parentWidgetId;
+    return parent.widgetId;
+  }
+
+  function applyEventProperty(
+    node: HostElement,
+    propName: string,
+    value: unknown,
+    prev: unknown
+  ): boolean {
+    const action = normalizeEventName(propName);
+    if (!action) return false;
+
+    const handlers = node.handlers.get(action) ?? new Set<WidgetActionHandler>();
+
+    if (typeof prev === "function") {
+      handlers.delete(prev as WidgetActionHandler);
+    }
+
+    if (typeof value === "function") {
+      handlers.add(value as WidgetActionHandler);
+    }
+
+    if (handlers.size > 0) {
+      node.handlers.set(action, handlers);
+      ensureEventSubscription();
+    } else {
+      node.handlers.delete(action);
+    }
+
+    return true;
+  }
+
+  function collectInitialWidgetState(node: HostElement): {
+    kind: string;
+    text: string | null;
+    style: AppJsStyle | null;
+  } {
+    const kind = normalizeWidgetKind(node.tag);
+    const style = createEmptyStyle();
+    let hasStyle = false;
+    let text: string | null = null;
+
+    if (node.tag === "row") {
+      style.direction = "row";
+      hasStyle = true;
+    } else if (node.tag === "column" || node.tag === "div" || node.tag === "section" || node.tag === "main" || node.tag === "article") {
+      style.direction = "column";
+      hasStyle = true;
+    }
+
+    for (const [name, value] of Object.entries(node.props)) {
+      if (name === "children" || name === "ref" || name === "key") continue;
+      if (isEventProp(name) || isNullish(value)) continue;
+      if (name === "id") continue;
+      if (name === "type") continue;
+      if (name === "visible") continue;
+
+      if (name === "text") {
+        text = String(value);
+        continue;
+      }
+
+      if (name === "checked") {
+        style.checked = Boolean(value);
+        hasStyle = true;
+        continue;
+      }
+
+      if (name === "value" && typeof value === "number") {
+        style.progress = value;
+        hasStyle = true;
+        continue;
+      }
+
+      if (name === "style" && typeof value === "object") {
+        Object.assign(style, value as AppJsStyle);
+        hasStyle = true;
+        continue;
+      }
+
+      if (isPrimitiveStyleValue(value)) {
+        style[mapStyleKey(name)] = value;
+        hasStyle = true;
+      }
+    }
+
+    return {
+      kind,
+      text,
+      style: hasStyle ? style : null,
+    };
+  }
+
+  function applyMountedProperty(node: HostElement, name: string, value: unknown): void {
+    if (name === "children" || name === "ref" || name === "key" || name === "id") return;
+    if (name === "type") return;
+    if (isEventProp(name)) return;
+
+    if (name === "style") {
+      if (value && typeof value === "object") {
+        runtime.ui.setStyle(node.widgetId, value as AppJsStyle);
+      }
+      return;
+    }
+
+    if (name === "text") {
+      runtime.ui.setText(node.widgetId, String(value ?? ""));
+      return;
+    }
+
+    if (name === "visible") {
+      runtime.ui.setVisible(node.widgetId, Boolean(value));
+      return;
+    }
+
+    if (name === "checked") {
+      runtime.ui.setChecked(node.widgetId, Boolean(value));
+      return;
+    }
+
+    if (name === "value" && typeof value === "number") {
+      runtime.ui.setValue(node.widgetId, value);
+      return;
+    }
+
+    if (isPrimitiveStyleValue(value)) {
+      runtime.ui.setStyleProperty(node.widgetId, mapStyleKey(name), value);
+    }
+  }
+
+  function mountNode(node: HostNode, parentWidgetId: string | null): void {
+    if (node.mounted) return;
+
+    if (node.nodeType === "text") {
+      runtime.ui.createWidget(node.widgetId, "label", parentWidgetId, node.text, null);
+      node.mounted = true;
+      return;
+    }
+
+    const init = collectInitialWidgetState(node);
+    runtime.ui.createWidget(node.widgetId, init.kind, parentWidgetId, init.text, init.style);
+    node.mounted = true;
+    widgetNodeById.set(node.widgetId, node);
+
+    for (const [name, value] of Object.entries(node.props)) {
+      applyMountedProperty(node, name, value);
+    }
+  }
+
+  function mountSubtree(node: HostNode, parentWidgetId: string | null): void {
+    mountNode(node, parentWidgetId);
+    if (node.nodeType === "text") return;
+
+    let child = node.firstChild;
+    while (child) {
+      mountSubtree(child, node.widgetId);
+      child = child.nextSibling;
+    }
+  }
+
+  function unmountSubtree(node: HostNode): void {
+    let child = node.firstChild;
+    while (child) {
+      const next = child.nextSibling;
+      unmountSubtree(child);
+      child = next;
+    }
+
+    if (node.nodeType === "element") {
+      widgetNodeById.delete(node.widgetId);
+      node.handlers.clear();
+    }
+
+    if (node.mounted) {
+      runtime.ui.removeWidget(node.widgetId);
+      node.mounted = false;
+    }
+
+    node.parent = null;
+    node.nextSibling = null;
+    node.firstChild = null;
+  }
+
+  function buildElementNode(tag: string): HostElement {
+    return {
+      nodeType: "element",
+      tag,
+      widgetId: nextWidgetId("el"),
+      props: Object.create(null) as Record<string, unknown>,
+      handlers: new Map<string, Set<WidgetActionHandler>>(),
+      parent: null,
+      firstChild: null,
+      nextSibling: null,
+      mounted: false,
+    };
+  }
+
+  function buildTextNode(value: string): HostText {
+    return {
+      nodeType: "text",
+      widgetId: nextWidgetId("text"),
+      text: String(value),
+      parent: null,
+      firstChild: null,
+      nextSibling: null,
+      mounted: false,
+    };
+  }
+
+  function setElementProperty(node: HostElement, name: string, value: unknown, prev: unknown): void {
+    if (name === "ref" && typeof value === "function") {
+      value(node);
+      return;
+    }
+
+    if (name === "id" && typeof value === "string" && !node.mounted) {
+      node.widgetId = value;
+    }
+
+    const hadProp = Object.prototype.hasOwnProperty.call(node.props, name);
+    if (isNullish(value) || value === false) {
+      if (hadProp) {
+        delete node.props[name];
+      }
+    } else {
+      node.props[name] = value;
+    }
+
+    if (applyEventProperty(node, name, value, prev)) {
+      return;
+    }
+
+    if (node.mounted) {
+      applyMountedProperty(node, name, value);
+    }
+  }
+
+  function insertHostNode(parent: HostParent, node: HostNode, anchor: HostNode | null = null): void {
+    node.parent = parent;
+    linkIntoParent(parent, node, anchor);
+
+    if (parent.mounted) {
+      mountSubtree(node, getParentWidgetId(parent));
+    }
+  }
+
+  function clearElementChildren(element: HostElement): void {
+    let child = element.firstChild;
+    while (child) {
+      const next = child.nextSibling;
+      unmountSubtree(child);
+      child = next;
+    }
+    element.firstChild = null;
+  }
+
+  function reconcileElementChildren(element: HostElement, childrenValue: unknown): void {
+    clearElementChildren(element);
+
+    const children = normalizeChildrenArray(childrenValue);
+    for (const child of children) {
+      const hostChild = materializeHostNode(child);
+      if (!hostChild) continue;
+      insertHostNode(element, hostChild, null);
+    }
+  }
+
+  function materializeHostNode(input: unknown): HostNode | null {
+    if (isHostNodeLike(input)) {
+      return input;
+    }
+
+    if (typeof input === "string" || typeof input === "number") {
+      return buildTextNode(String(input));
+    }
+
+    if (!isAppJsJsxNode(input)) {
+      return null;
+    }
+
+    const cached = jsxNodeMap.get(input as object);
+    if (cached) {
+      return cached;
+    }
+
+    const element = buildElementNode(input.type);
+    jsxNodeMap.set(input as object, element);
+
+    const props = input.props ?? {};
+    for (const [key, value] of Object.entries(props)) {
+      if (key === "children") continue;
+
+      if (isReactiveAccessorProp(key, value)) {
+        let prev: unknown = undefined;
+        createRenderEffect(() => {
+          const next = value();
+          setElementProperty(element, key, next, prev);
+          prev = next;
+        });
+        continue;
+      }
+
+      setElementProperty(element, key, value, undefined);
+    }
+
+    const childrenProp = props.children;
+    if (typeof childrenProp === "function") {
+      createRenderEffect(() => {
+        reconcileElementChildren(element, childrenProp());
+      });
+    } else {
+      reconcileElementChildren(element, childrenProp);
+    }
+
+    return element;
+  }
+
+  const renderer = createRenderer<HostNode | AppJsRoot>({
+    createElement(tag: string): HostElement {
+      return buildElementNode(tag);
+    },
+    createTextNode(value: string): HostText {
+      return buildTextNode(value);
+    },
+    replaceText(node: HostNode | AppJsRoot, value: string): void {
+      if (node.nodeType !== "text") return;
+
+      node.text = String(value);
+      if (node.mounted) {
+        runtime.ui.setText(node.widgetId, node.text);
+      }
+    },
+    setProperty(node: HostNode | AppJsRoot, name: string, value: unknown, prev: unknown): void {
+      if (node.nodeType !== "element") return;
+      setElementProperty(node, name, value, prev);
+    },
+    insertNode(parent: HostNode | AppJsRoot, node: HostNode | AppJsRoot, anchor?: HostNode | AppJsRoot): void {
+      const hostParent = parent as HostParent;
+      const hostNode = materializeHostNode(node);
+      if (!hostNode) return;
+
+      const hostAnchor = materializeHostNode(anchor) ?? null;
+      insertHostNode(hostParent, hostNode, hostAnchor);
+    },
+    isTextNode(node: HostNode | AppJsRoot): boolean {
+      return node.nodeType === "text";
+    },
+    removeNode(parent: HostNode | AppJsRoot, node: HostNode | AppJsRoot): void {
+      const hostParent = parent as HostParent;
+      const hostNode = materializeHostNode(node);
+      if (!hostNode) return;
+
+      unlinkFromParent(hostParent, hostNode);
+      unmountSubtree(hostNode);
+    },
+    getParentNode(node: HostNode | AppJsRoot): HostParent | undefined {
+      return node.parent ?? undefined;
+    },
+    getFirstChild(node: HostNode | AppJsRoot): HostNode | undefined {
+      return node.firstChild ?? undefined;
+    },
+    getNextSibling(node: HostNode | AppJsRoot): HostNode | undefined {
+      return node.nextSibling ?? undefined;
+    },
+  });
+
+  function render(code: () => unknown, options?: RenderOptions | AppJsRoot): AppJsRoot {
+    const root =
+      options && "nodeType" in options
+        ? options
+        : createRoot(options?.parentId ?? DEFAULT_PARENT_ID);
+
+    renderer.render(code as () => HostNode | AppJsRoot, root);
+    return root;
+  }
+
+  function dispose(): void {
+    if (unsubscribeEvents) {
+      unsubscribeEvents();
+      unsubscribeEvents = null;
+    }
+    widgetNodeById.clear();
+  }
+
+  return {
+    ...renderer,
+    createRoot,
+    createHostElement: (tag: string): AppJsHostElement => buildElementNode(tag),
+    createHostText: (value: string): AppJsHostText => buildTextNode(value),
+    setHostProperty: (node: AppJsHostElement, name: string, value: unknown, prev?: unknown): void => {
+      setElementProperty(node as HostElement, name, value, prev);
+    },
+    appendHostNode: (
+      parent: AppJsRoot | AppJsHostElement,
+      node: AppJsHostElement | AppJsHostText,
+      anchor?: AppJsHostElement | AppJsHostText | null
+    ): void => {
+      insertHostNode(parent as HostParent, node as HostNode, (anchor as HostNode | null | undefined) ?? null);
+    },
+    render,
+    dispose,
+  };
+}
