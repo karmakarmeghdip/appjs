@@ -29,6 +29,7 @@ use deno_core::ModuleType;
 use deno_core::ResolutionKind;
 use deno_core::error::ModuleLoaderError;
 use deno_core::resolve_import;
+use deno_core::serde_json::Value;
 use deno_error::JsErrorBox;
 
 type SourceMapStore = Rc<RefCell<HashMap<String, Vec<u8>>>>;
@@ -63,53 +64,225 @@ fn resolve_jsr_specifier(specifier: &str) -> Result<ModuleSpecifier, JsErrorBox>
         ));
     }
 
-    // Split into package and path parts
-    // @scope/package@version/path or @scope/package/path
-    let parts: Vec<&str> = rest.splitn(3, '/').collect();
-    if parts.len() < 2 {
+    // Parse @scope/package[@version][/path...]
+    let scope_end = rest
+        .find('/')
+        .ok_or_else(|| JsErrorBox::generic("jsr: specifier must be @scope/package"))?;
+
+    let scope = &rest[..scope_end]; // @scope
+    let after_scope = &rest[scope_end + 1..];
+
+    if after_scope.is_empty() {
         return Err(JsErrorBox::generic("jsr: specifier must be @scope/package"));
     }
 
-    let scope = parts[0]; // @scope
-    let (package, version, path) = if parts.len() == 2 {
-        // @scope/package or @scope/package@version
-        parse_package_version(parts[1], "")?
+    let (package_and_version, subpath) = if let Some(path_sep) = after_scope.find('/') {
+        (&after_scope[..path_sep], &after_scope[path_sep + 1..])
     } else {
-        // @scope/package@version/path or @scope/package/path/more
-        let remaining = parts[2];
-        parse_package_version(parts[1], remaining)?
+        (after_scope, "")
     };
+
+    let (package, version) = if let Some(at_pos) = package_and_version.rfind('@') {
+        (
+            &package_and_version[..at_pos],
+            &package_and_version[at_pos + 1..],
+        )
+    } else {
+        (package_and_version, "")
+    };
+
+    if package.is_empty() {
+        return Err(JsErrorBox::generic("jsr: specifier missing package name"));
+    }
 
     // Construct the jsr.io URL
     // https://jsr.io/@scope/package[@version][/path]
-    let url_str = if version.is_empty() {
-        if path.is_empty() {
-            format!("https://jsr.io/{scope}/{package}/mod.ts")
-        } else {
-            format!("https://jsr.io/{scope}/{package}/{path}")
-        }
-    } else if path.is_empty() {
-        format!("https://jsr.io/{scope}/{package}/{version}/mod.ts")
+    let mut url_str = if version.is_empty() {
+        format!("https://jsr.io/{scope}/{package}")
     } else {
-        format!("https://jsr.io/{scope}/{package}/{version}/{path}")
+        format!("https://jsr.io/{scope}/{package}@{version}")
+    };
+
+    if !subpath.is_empty() {
+        url_str.push('/');
+        url_str.push_str(subpath);
     };
 
     ModuleSpecifier::parse(&url_str)
         .map_err(|e| JsErrorBox::generic(format!("Failed to parse jsr URL '{}': {}", url_str, e)))
 }
 
-/// Parse "package@version" into (package, version, path)
-fn parse_package_version<'a>(
-    pkg_str: &'a str,
-    remaining_path: &'a str,
-) -> Result<(&'a str, &'a str, &'a str), JsErrorBox> {
-    if let Some(at_pos) = pkg_str.find('@') {
-        let package = &pkg_str[..at_pos];
-        let version = &pkg_str[at_pos + 1..];
-        Ok((package, version, remaining_path))
-    } else {
-        Ok((pkg_str, "", remaining_path))
+fn is_version_like(segment: &str) -> bool {
+    let core = segment
+        .split_once('-')
+        .map(|(left, _)| left)
+        .unwrap_or(segment);
+
+    let mut parts = core.split('.');
+    let (Some(major), Some(minor), Some(patch)) = (parts.next(), parts.next(), parts.next()) else {
+        return false;
+    };
+
+    if parts.next().is_some() {
+        return false;
     }
+
+    major.chars().all(|c| c.is_ascii_digit())
+        && minor.chars().all(|c| c.is_ascii_digit())
+        && patch.chars().all(|c| c.is_ascii_digit())
+}
+
+fn parse_jsr_path(path: &str) -> Option<(&str, &str, Option<&str>, Option<String>)> {
+    let segments: Vec<&str> = path.trim_start_matches('/').split('/').collect();
+    if segments.len() < 2 {
+        return None;
+    }
+
+    let scope = segments[0];
+    if !scope.starts_with('@') {
+        return None;
+    }
+
+    let pkg_segment = segments[1];
+    let (package, version) = if let Some(at_pos) = pkg_segment.rfind('@') {
+        (&pkg_segment[..at_pos], Some(&pkg_segment[at_pos + 1..]))
+    } else {
+        (pkg_segment, None)
+    };
+
+    if package.is_empty() {
+        return None;
+    }
+
+    let subpath = if segments.len() > 2 {
+        Some(segments[2..].join("/"))
+    } else {
+        None
+    };
+
+    Some((scope, package, version, subpath))
+}
+
+fn is_jsr_package_entry_url(specifier: &ModuleSpecifier) -> bool {
+    if specifier.scheme() != "https" {
+        return false;
+    }
+
+    if specifier.host_str() != Some("jsr.io") {
+        return false;
+    }
+
+    let segments: Vec<&str> = specifier
+        .path()
+        .trim_start_matches('/')
+        .split('/')
+        .collect();
+    if segments.len() < 2 {
+        return false;
+    }
+
+    if !segments[0].starts_with('@') {
+        return false;
+    }
+
+    if segments.len() >= 3 && is_version_like(segments[2]) {
+        return false;
+    }
+
+    true
+}
+
+async fn resolve_jsr_entry_to_module(
+    client: &reqwest::Client,
+    specifier: &ModuleSpecifier,
+) -> Result<ModuleSpecifier, JsErrorBox> {
+    let (scope, package, requested_version, subpath) = parse_jsr_path(specifier.path())
+        .ok_or_else(|| JsErrorBox::generic(format!("Invalid JSR entry URL: {}", specifier)))?;
+
+    let package_meta_url = format!("https://jsr.io/{scope}/{package}/meta.json");
+    let package_meta_text = client
+        .get(&package_meta_url)
+        .send()
+        .await
+        .map_err(|e| JsErrorBox::generic(format!("Failed to fetch '{}': {}", package_meta_url, e)))?
+        .error_for_status()
+        .map_err(|e| {
+            JsErrorBox::generic(format!("HTTP error fetching '{}': {}", package_meta_url, e))
+        })?
+        .text()
+        .await
+        .map_err(|e| {
+            JsErrorBox::generic(format!("Failed to read '{}': {}", package_meta_url, e))
+        })?;
+    let package_meta: Value = deno_core::serde_json::from_str(&package_meta_text).map_err(|e| {
+        JsErrorBox::generic(format!("Invalid JSON from '{}': {}", package_meta_url, e))
+    })?;
+
+    let version = if let Some(v) = requested_version {
+        v.to_string()
+    } else {
+        package_meta
+            .get("latest")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                JsErrorBox::generic(format!("Missing latest version in '{}'", package_meta_url))
+            })?
+            .to_string()
+    };
+
+    let version_meta_url = format!("https://jsr.io/{scope}/{package}/{version}_meta.json");
+    let version_meta_text = client
+        .get(&version_meta_url)
+        .send()
+        .await
+        .map_err(|e| JsErrorBox::generic(format!("Failed to fetch '{}': {}", version_meta_url, e)))?
+        .error_for_status()
+        .map_err(|e| {
+            JsErrorBox::generic(format!("HTTP error fetching '{}': {}", version_meta_url, e))
+        })?
+        .text()
+        .await
+        .map_err(|e| {
+            JsErrorBox::generic(format!("Failed to read '{}': {}", version_meta_url, e))
+        })?;
+    let version_meta: Value = deno_core::serde_json::from_str(&version_meta_text).map_err(|e| {
+        JsErrorBox::generic(format!("Invalid JSON from '{}': {}", version_meta_url, e))
+    })?;
+
+    let exports = version_meta
+        .get("exports")
+        .and_then(Value::as_object)
+        .ok_or_else(|| {
+            JsErrorBox::generic(format!("Missing exports map in '{}'", version_meta_url))
+        })?;
+
+    let export_key = if let Some(path) = subpath.as_ref().filter(|p| !p.is_empty()) {
+        format!("./{path}")
+    } else {
+        ".".to_string()
+    };
+
+    let export_target = exports
+        .get(&export_key)
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            JsErrorBox::generic(format!(
+                "Export key '{}' not found for '{}@{}'",
+                export_key, scope, package
+            ))
+        })?;
+
+    let relative = export_target
+        .trim_start_matches("./")
+        .trim_start_matches('/');
+    let resolved_url = format!("https://jsr.io/{scope}/{package}/{version}/{relative}");
+
+    ModuleSpecifier::parse(&resolved_url).map_err(|e| {
+        JsErrorBox::generic(format!(
+            "Failed to parse resolved JSR module URL '{}': {}",
+            resolved_url, e
+        ))
+    })
 }
 
 /// Resolve an npm: specifier via esm.sh CDN.
@@ -314,13 +487,27 @@ impl ModuleLoader for AppJsModuleLoader {
                 let source_maps = self.source_maps.clone();
                 ModuleLoadResponse::Sync(load_local(module_specifier, &source_maps))
             }
-            "https" | "http" => {
+            "https" | "http" | "jsr" => {
                 // Async remote module fetch
                 let specifier = module_specifier.clone();
                 let client = self.http_client.clone();
                 let source_maps = self.source_maps.clone();
 
                 let fut = async move {
+                    let requested_specifier = specifier.clone();
+
+                    let specifier = if specifier.scheme() == "jsr" {
+                        resolve_jsr_specifier(specifier.as_str())?
+                    } else {
+                        specifier
+                    };
+
+                    let specifier = if is_jsr_package_entry_url(&specifier) {
+                        resolve_jsr_entry_to_module(&client, &specifier).await?
+                    } else {
+                        specifier
+                    };
+
                     let response = client
                         .get(specifier.as_str())
                         .header("Accept", "application/typescript,application/javascript,text/typescript,text/javascript,*/*")
@@ -387,7 +574,15 @@ impl ModuleLoader for AppJsModuleLoader {
                         code
                     };
 
-                    if final_url.as_str() != specifier.as_str() {
+                    if requested_specifier.as_str() != final_specifier.as_str() {
+                        Ok(ModuleSource::new_with_redirect(
+                            module_type,
+                            ModuleSourceCode::String(code.into()),
+                            &requested_specifier,
+                            &final_specifier,
+                            None,
+                        ))
+                    } else if final_url.as_str() != specifier.as_str() {
                         Ok(ModuleSource::new_with_redirect(
                             module_type,
                             ModuleSourceCode::String(code.into()),

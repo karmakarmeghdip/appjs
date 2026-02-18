@@ -8,7 +8,7 @@
 // and std::sync::mpsc (UI→JS, for UI events).
 
 // On Windows platform, don't show a console when opening the app.
-#![windows_subsystem = "windows"]
+// #![windows_subsystem = "windows"]
 
 mod ipc;
 mod js_thread;
