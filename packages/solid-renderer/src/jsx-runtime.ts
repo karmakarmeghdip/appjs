@@ -1,4 +1,5 @@
-import { createComponent } from "npm:solid-js@^1.9.0";
+import { createComponent } from "solid-js";
+import type { Component } from "solid-js";
 import type { AppJsCommonProps } from "./index.ts";
 
 type JsxProps = Record<string, unknown> | null | undefined;
@@ -39,7 +40,7 @@ export function jsx(type: unknown, props: JsxProps, ...children: unknown[]): unk
     const mergedProps = withChildren(props, children);
 
     if (typeof type === "function") {
-        return createComponent(type as (input: Record<string, unknown>) => unknown, mergedProps);
+        return createComponent(type as Component<Record<string, unknown>>, mergedProps);
     }
 
     return createJsxNode(String(type), mergedProps);

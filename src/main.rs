@@ -31,13 +31,13 @@ fn main() {
         println!("[Main] WGPU backend defaulted to OpenGL (WGPU_BACKEND=gl)");
     }
 
-    // Parse CLI arguments: expect a JS/TS file path as the first argument
+    // Parse CLI arguments: expect a bundled JS file path as the first argument
     let args: Vec<String> = std::env::args().collect();
     let script_path = match args.get(1) {
         Some(path) => path.clone(),
         None => {
-            eprintln!("Usage: appjs <script.js|script.ts>");
-            eprintln!("  Example: appjs ./app.js");
+            eprintln!("Usage: appjs <bundle.js>");
+            eprintln!("  Example: appjs ./dist/app.bundle.js");
             std::process::exit(1);
         }
     };
@@ -72,7 +72,7 @@ fn main() {
 
     // Configure the JS runtime
     let js_config = JsRuntimeConfig {
-        main_module_path: absolute_path.to_string_lossy().to_string(),
+        script_path: absolute_path.to_string_lossy().to_string(),
     };
 
     // Phase 3: Spawn the JS runtime thread with EventLoopProxy-based command sender.

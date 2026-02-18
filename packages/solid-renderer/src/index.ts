@@ -1,5 +1,5 @@
-import { createRenderEffect } from "npm:solid-js@^1.9.0";
-import { createRenderer } from "npm:solid-js@^1.9.0/universal";
+import { createRenderEffect } from "solid-js";
+import { createRenderer } from "solid-js/universal";
 
 export type AppJsStyle = Record<string, unknown>;
 
@@ -691,14 +691,14 @@ export function createAppJsRenderer(runtime: AppJsRuntime): AppJsRenderer {
             unlinkFromParent(hostParent, hostNode);
             unmountSubtree(hostNode);
         },
-        getParentNode(node: HostNode | AppJsRoot): HostParent | null {
-            return node.parent;
+        getParentNode(node: HostNode | AppJsRoot): HostParent | undefined {
+            return node.parent ?? undefined;
         },
-        getFirstChild(node: HostNode | AppJsRoot): HostNode | null {
-            return node.firstChild;
+        getFirstChild(node: HostNode | AppJsRoot): HostNode | undefined {
+            return node.firstChild ?? undefined;
         },
-        getNextSibling(node: HostNode | AppJsRoot): HostNode | null {
-            return node.nextSibling;
+        getNextSibling(node: HostNode | AppJsRoot): HostNode | undefined {
+            return node.nextSibling ?? undefined;
         },
     });
 
@@ -708,7 +708,7 @@ export function createAppJsRenderer(runtime: AppJsRuntime): AppJsRenderer {
                 ? options
                 : createRoot(options?.parentId ?? DEFAULT_PARENT_ID);
 
-        renderer.render(code, root);
+        renderer.render(code as () => HostNode | AppJsRoot, root);
         return root;
     }
 

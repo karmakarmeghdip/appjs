@@ -36,11 +36,7 @@ pub fn parse_style_json(json_str: &str) -> Option<WidgetStyle> {
         }
     }
 
-    if has_any {
-        Some(style)
-    } else {
-        None
-    }
+    if has_any { Some(style) } else { None }
 }
 
 /// Split JSON pairs at top-level commas (not inside nested braces/strings)
@@ -90,7 +86,9 @@ pub fn parse_json_kv(pair: &str) -> Option<(String, String)> {
 pub fn unquote(s: &str) -> String {
     let s = s.trim();
     if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
-        s[1..s.len() - 1].replace("\\\"", "\"").replace("\\\\", "\\")
+        s[1..s.len() - 1]
+            .replace("\\\"", "\"")
+            .replace("\\\\", "\\")
     } else {
         s.to_string()
     }
@@ -285,5 +283,3 @@ pub fn parse_json_bool(s: &str) -> Option<bool> {
         _ => None,
     }
 }
-
-

@@ -3,17 +3,15 @@ use masonry::core::{NewWidget, Properties, StyleProperty, WidgetId, WidgetOption
 use masonry::parley::style::{FontFamily, FontStack, GenericFamily};
 use masonry::peniko::Color;
 use masonry::properties::ContentColor;
+use masonry::properties::types::{CrossAxisAlignment, Length, MainAxisAlignment};
 use masonry::widgets::{
     Button, Checkbox, ChildAlignment, Flex, Label, Portal, ProgressBar, Prose, SizedBox, Slider,
     Spinner, TextInput, ZStack,
 };
-use masonry::properties::types::{CrossAxisAlignment, Length, MainAxisAlignment};
 
+use super::styles::{build_box_properties, build_text_styles, default_text_style_props};
+use super::widget_manager::{ROOT_FLEX_TAG, WidgetInfo, WidgetManager};
 use crate::ipc::{CrossAlign, FlexDirection, MainAlign, WidgetKind, WidgetStyle};
-use super::widget_manager::{WidgetManager, WidgetInfo, ROOT_FLEX_TAG};
-use super::styles::{
-    build_box_properties, build_text_styles, default_text_style_props,
-};
 
 /// Helper: add a widget to the root flex or a named parent flex.
 /// If `flex_factor` is Some, the child is added with that flex grow factor.
@@ -105,32 +103,29 @@ pub fn create_and_add_widget(
             let mut label = Label::new(label_text);
 
             // Apply text styles
-            let text_styles = style_ref
-                .map(build_text_styles)
-                .unwrap_or_else(|| {
-                    vec![
-                        StyleProperty::FontSize(30.0),
-                        StyleProperty::FontStack(FontStack::Single(FontFamily::Generic(
-                            GenericFamily::SansSerif,
-                        ))),
-                    ]
-                });
+            let text_styles = style_ref.map(build_text_styles).unwrap_or_else(|| {
+                vec![
+                    StyleProperty::FontSize(30.0),
+                    StyleProperty::FontStack(FontStack::Single(FontFamily::Generic(
+                        GenericFamily::SansSerif,
+                    ))),
+                ]
+            });
             for s in &text_styles {
                 label = label.with_style(s.clone());
             }
 
             let props = style_ref
                 .map(build_box_properties)
-                .unwrap_or_else(|| {
-                    Properties::new().with(ContentColor::new(Color::WHITE))
-                });
-            let new_widget = NewWidget::new_with(
-                label,
-                widget_id,
-                WidgetOptions::default(),
-                props,
-            );
-            if add_to_parent(render_root, widget_manager, &parent_id, new_widget, style_ref.and_then(|s| s.flex)) {
+                .unwrap_or_else(|| Properties::new().with(ContentColor::new(Color::WHITE)));
+            let new_widget = NewWidget::new_with(label, widget_id, WidgetOptions::default(), props);
+            if add_to_parent(
+                render_root,
+                widget_manager,
+                &parent_id,
+                new_widget,
+                style_ref.and_then(|s| s.flex),
+            ) {
                 widget_manager.widgets.insert(
                     id,
                     WidgetInfo {
@@ -157,16 +152,16 @@ pub fn create_and_add_widget(
             let button = Button::new(NewWidget::new(inner_label));
             let props = style_ref
                 .map(build_box_properties)
-                .unwrap_or_else(|| {
-                    Properties::new().with(ContentColor::new(Color::WHITE))
-                });
-            let new_widget = NewWidget::new_with(
-                button,
-                widget_id,
-                WidgetOptions::default(),
-                props,
-            );
-            if add_to_parent(render_root, widget_manager, &parent_id, new_widget, style_ref.and_then(|s| s.flex)) {
+                .unwrap_or_else(|| Properties::new().with(ContentColor::new(Color::WHITE)));
+            let new_widget =
+                NewWidget::new_with(button, widget_id, WidgetOptions::default(), props);
+            if add_to_parent(
+                render_root,
+                widget_manager,
+                &parent_id,
+                new_widget,
+                style_ref.and_then(|s| s.flex),
+            ) {
                 widget_manager.widgets.insert(
                     id,
                     WidgetInfo {
@@ -212,9 +207,7 @@ pub fn create_and_add_widget(
                 // If flex factor is set, auto-enable must_fill_main_axis
                 // so the container actually expands to fill the space granted by flex
                 if s.flex.is_some() {
-                    new_flex = new_flex.must_fill_main_axis(
-                        s.must_fill_main_axis.unwrap_or(true),
-                    );
+                    new_flex = new_flex.must_fill_main_axis(s.must_fill_main_axis.unwrap_or(true));
                 } else if let Some(fill) = s.must_fill_main_axis {
                     new_flex = new_flex.must_fill_main_axis(fill);
                 }
@@ -223,14 +216,16 @@ pub fn create_and_add_widget(
             let props = style_ref
                 .map(build_box_properties)
                 .unwrap_or_else(Properties::new);
-            let new_widget = NewWidget::new_with(
-                new_flex,
-                widget_id,
-                WidgetOptions::default(),
-                props,
-            );
+            let new_widget =
+                NewWidget::new_with(new_flex, widget_id, WidgetOptions::default(), props);
 
-            if add_to_parent(render_root, widget_manager, &parent_id, new_widget, style_ref.and_then(|s| s.flex)) {
+            if add_to_parent(
+                render_root,
+                widget_manager,
+                &parent_id,
+                new_widget,
+                style_ref.and_then(|s| s.flex),
+            ) {
                 widget_manager.child_counts.insert(id.clone(), 0);
                 widget_manager.widgets.insert(
                     id,
@@ -258,13 +253,14 @@ pub fn create_and_add_widget(
             let props = style_ref
                 .map(build_box_properties)
                 .unwrap_or_else(Properties::new);
-            let new_widget = NewWidget::new_with(
-                sbox,
-                widget_id,
-                WidgetOptions::default(),
-                props,
-            );
-            if add_to_parent(render_root, widget_manager, &parent_id, new_widget, style_ref.and_then(|s| s.flex)) {
+            let new_widget = NewWidget::new_with(sbox, widget_id, WidgetOptions::default(), props);
+            if add_to_parent(
+                render_root,
+                widget_manager,
+                &parent_id,
+                new_widget,
+                style_ref.and_then(|s| s.flex),
+            ) {
                 widget_manager.widgets.insert(
                     id,
                     WidgetInfo {
@@ -284,13 +280,15 @@ pub fn create_and_add_widget(
             let props = style_ref
                 .map(build_box_properties)
                 .unwrap_or_else(Properties::new);
-            let new_widget = NewWidget::new_with(
-                checkbox,
-                widget_id,
-                WidgetOptions::default(),
-                props,
-            );
-            if add_to_parent(render_root, widget_manager, &parent_id, new_widget, style_ref.and_then(|s| s.flex)) {
+            let new_widget =
+                NewWidget::new_with(checkbox, widget_id, WidgetOptions::default(), props);
+            if add_to_parent(
+                render_root,
+                widget_manager,
+                &parent_id,
+                new_widget,
+                style_ref.and_then(|s| s.flex),
+            ) {
                 widget_manager.widgets.insert(
                     id,
                     WidgetInfo {
@@ -314,16 +312,16 @@ pub fn create_and_add_widget(
 
             let props = style_ref
                 .map(build_box_properties)
-                .unwrap_or_else(|| {
-                    Properties::new().with(ContentColor::new(Color::WHITE))
-                });
-            let new_widget = NewWidget::new_with(
-                text_input,
-                widget_id,
-                WidgetOptions::default(),
-                props,
-            );
-            if add_to_parent(render_root, widget_manager, &parent_id, new_widget, style_ref.and_then(|s| s.flex)) {
+                .unwrap_or_else(|| Properties::new().with(ContentColor::new(Color::WHITE)));
+            let new_widget =
+                NewWidget::new_with(text_input, widget_id, WidgetOptions::default(), props);
+            if add_to_parent(
+                render_root,
+                widget_manager,
+                &parent_id,
+                new_widget,
+                style_ref.and_then(|s| s.flex),
+            ) {
                 widget_manager.widgets.insert(
                     id,
                     WidgetInfo {
@@ -341,16 +339,15 @@ pub fn create_and_add_widget(
             let prose = Prose::new(area_text);
             let props = style_ref
                 .map(build_box_properties)
-                .unwrap_or_else(|| {
-                    Properties::new().with(ContentColor::new(Color::WHITE))
-                });
-            let new_widget = NewWidget::new_with(
-                prose,
-                widget_id,
-                WidgetOptions::default(),
-                props,
-            );
-            if add_to_parent(render_root, widget_manager, &parent_id, new_widget, style_ref.and_then(|s| s.flex)) {
+                .unwrap_or_else(|| Properties::new().with(ContentColor::new(Color::WHITE)));
+            let new_widget = NewWidget::new_with(prose, widget_id, WidgetOptions::default(), props);
+            if add_to_parent(
+                render_root,
+                widget_manager,
+                &parent_id,
+                new_widget,
+                style_ref.and_then(|s| s.flex),
+            ) {
                 widget_manager.widgets.insert(
                     id,
                     WidgetInfo {
@@ -368,16 +365,15 @@ pub fn create_and_add_widget(
             let prose = Prose::new(prose_text);
             let props = style_ref
                 .map(build_box_properties)
-                .unwrap_or_else(|| {
-                    Properties::new().with(ContentColor::new(Color::WHITE))
-                });
-            let new_widget = NewWidget::new_with(
-                prose,
-                widget_id,
-                WidgetOptions::default(),
-                props,
-            );
-            if add_to_parent(render_root, widget_manager, &parent_id, new_widget, style_ref.and_then(|s| s.flex)) {
+                .unwrap_or_else(|| Properties::new().with(ContentColor::new(Color::WHITE)));
+            let new_widget = NewWidget::new_with(prose, widget_id, WidgetOptions::default(), props);
+            if add_to_parent(
+                render_root,
+                widget_manager,
+                &parent_id,
+                new_widget,
+                style_ref.and_then(|s| s.flex),
+            ) {
                 widget_manager.widgets.insert(
                     id,
                     WidgetInfo {
@@ -396,13 +392,14 @@ pub fn create_and_add_widget(
             let props = style_ref
                 .map(build_box_properties)
                 .unwrap_or_else(Properties::new);
-            let new_widget = NewWidget::new_with(
-                pbar,
-                widget_id,
-                WidgetOptions::default(),
-                props,
-            );
-            if add_to_parent(render_root, widget_manager, &parent_id, new_widget, style_ref.and_then(|s| s.flex)) {
+            let new_widget = NewWidget::new_with(pbar, widget_id, WidgetOptions::default(), props);
+            if add_to_parent(
+                render_root,
+                widget_manager,
+                &parent_id,
+                new_widget,
+                style_ref.and_then(|s| s.flex),
+            ) {
                 widget_manager.widgets.insert(
                     id,
                     WidgetInfo {
@@ -420,13 +417,15 @@ pub fn create_and_add_widget(
             let props = style_ref
                 .map(build_box_properties)
                 .unwrap_or_else(Properties::new);
-            let new_widget = NewWidget::new_with(
-                spinner,
-                widget_id,
-                WidgetOptions::default(),
-                props,
-            );
-            if add_to_parent(render_root, widget_manager, &parent_id, new_widget, style_ref.and_then(|s| s.flex)) {
+            let new_widget =
+                NewWidget::new_with(spinner, widget_id, WidgetOptions::default(), props);
+            if add_to_parent(
+                render_root,
+                widget_manager,
+                &parent_id,
+                new_widget,
+                style_ref.and_then(|s| s.flex),
+            ) {
                 widget_manager.widgets.insert(
                     id,
                     WidgetInfo {
@@ -452,13 +451,15 @@ pub fn create_and_add_widget(
             let props = style_ref
                 .map(build_box_properties)
                 .unwrap_or_else(Properties::new);
-            let new_widget = NewWidget::new_with(
-                slider,
-                widget_id,
-                WidgetOptions::default(),
-                props,
-            );
-            if add_to_parent(render_root, widget_manager, &parent_id, new_widget, style_ref.and_then(|s| s.flex)) {
+            let new_widget =
+                NewWidget::new_with(slider, widget_id, WidgetOptions::default(), props);
+            if add_to_parent(
+                render_root,
+                widget_manager,
+                &parent_id,
+                new_widget,
+                style_ref.and_then(|s| s.flex),
+            ) {
                 widget_manager.widgets.insert(
                     id,
                     WidgetInfo {
@@ -476,13 +477,15 @@ pub fn create_and_add_widget(
             let props = style_ref
                 .map(build_box_properties)
                 .unwrap_or_else(Properties::new);
-            let new_widget = NewWidget::new_with(
-                zstack,
-                widget_id,
-                WidgetOptions::default(),
-                props,
-            );
-            if add_to_parent(render_root, widget_manager, &parent_id, new_widget, style_ref.and_then(|s| s.flex)) {
+            let new_widget =
+                NewWidget::new_with(zstack, widget_id, WidgetOptions::default(), props);
+            if add_to_parent(
+                render_root,
+                widget_manager,
+                &parent_id,
+                new_widget,
+                style_ref.and_then(|s| s.flex),
+            ) {
                 widget_manager.child_counts.insert(id.clone(), 0);
                 widget_manager.widgets.insert(
                     id,
@@ -503,13 +506,15 @@ pub fn create_and_add_widget(
             let props = style_ref
                 .map(build_box_properties)
                 .unwrap_or_else(Properties::new);
-            let new_widget = NewWidget::new_with(
-                portal,
-                widget_id,
-                WidgetOptions::default(),
-                props,
-            );
-            if add_to_parent(render_root, widget_manager, &parent_id, new_widget, style_ref.and_then(|s| s.flex)) {
+            let new_widget =
+                NewWidget::new_with(portal, widget_id, WidgetOptions::default(), props);
+            if add_to_parent(
+                render_root,
+                widget_manager,
+                &parent_id,
+                new_widget,
+                style_ref.and_then(|s| s.flex),
+            ) {
                 widget_manager.widgets.insert(
                     id,
                     WidgetInfo {
@@ -527,7 +532,13 @@ pub fn create_and_add_widget(
             println!("[UI] Grid widget not yet fully supported, using Flex column as fallback");
             let new_flex = Flex::column();
             let new_widget = NewWidget::new_with_id(new_flex, widget_id);
-            if add_to_parent(render_root, widget_manager, &parent_id, new_widget, style_ref.and_then(|s| s.flex)) {
+            if add_to_parent(
+                render_root,
+                widget_manager,
+                &parent_id,
+                new_widget,
+                style_ref.and_then(|s| s.flex),
+            ) {
                 widget_manager.child_counts.insert(id.clone(), 0);
                 widget_manager.widgets.insert(
                     id,
@@ -559,7 +570,13 @@ pub fn create_and_add_widget(
                 WidgetOptions::default(),
                 Properties::new().with(ContentColor::new(Color::WHITE)),
             );
-            if add_to_parent(render_root, widget_manager, &parent_id, new_widget, style_ref.and_then(|s| s.flex)) {
+            if add_to_parent(
+                render_root,
+                widget_manager,
+                &parent_id,
+                new_widget,
+                style_ref.and_then(|s| s.flex),
+            ) {
                 widget_manager.widgets.insert(
                     id,
                     WidgetInfo {

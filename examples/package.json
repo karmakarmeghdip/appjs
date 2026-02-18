@@ -1,0 +1,21 @@
+{
+  "name": "@appjs/examples",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun run build:example",
+    "build:example": "bun build --outdir ./dist --format iife --target browser --sourcemap",
+    "typecheck": "tsc --noEmit",
+    "run": "bun run run:example",
+    "run:example": "bun run ./scripts/run-example.ts"
+  },
+  "dependencies": {
+    "@appjs/runtime": "workspace:*",
+    "@appjs/solid-renderer": "workspace:*",
+    "solid-js": "^1.9.11"
+  },
+  "devDependencies": {
+    "bun-types": "^1.3.9",
+    "typescript": "^5.9.2"
+  }
+}

@@ -2,5 +2,7 @@
 .direnv
 .ref
 /node_modules
+/examples/node_modules
+/examples/dist
 /.vscode
 /deno.lock

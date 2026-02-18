@@ -4,26 +4,24 @@
 mod console_ops;
 pub mod event_serializer;
 pub mod ipc_ops;
-mod module_loader;
 pub mod style_parser;
 
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use deno_core::{JsRuntime, ModuleSpecifier, RuntimeOptions};
+use deno_core::{JsRuntime, RuntimeOptions};
 
 use crate::ipc::{JsCommand, JsThreadChannels, LogLevel};
 
 /// Configuration for the JS runtime
 pub struct JsRuntimeConfig {
-    /// Path to the main JavaScript module to execute
-    pub main_module_path: String,
+    /// Path to the bundled JavaScript file to execute
+    pub script_path: String,
 }
 
 impl Default for JsRuntimeConfig {
     fn default() -> Self {
         Self {
-            main_module_path: "./main.js".to_string(),
+            script_path: "./main.js".to_string(),
         }
     }
 }
@@ -63,21 +61,16 @@ async fn run_js_runtime(
 
     log("Initializing JS runtime...");
 
-    // Resolve the module specifier — supports file paths, https://, jsr:, npm:
-    let main_module = if config.main_module_path.starts_with("https://")
-        || config.main_module_path.starts_with("http://")
-        || config.main_module_path.starts_with("jsr:")
-        || config.main_module_path.starts_with("npm:")
-    {
-        ModuleSpecifier::parse(&config.main_module_path)
-            .map_err(|e| format!("Invalid module URL '{}': {}", config.main_module_path, e))?
-    } else {
-        let module_path = std::path::Path::new(&config.main_module_path);
-        ModuleSpecifier::from_file_path(module_path)
-            .map_err(|_| format!("Invalid module path: {}", config.main_module_path))?
-    };
+    let script_path = std::path::Path::new(&config.script_path);
+    let script_specifier = deno_core::resolve_path(
+        script_path.to_string_lossy().as_ref(),
+        &std::env::current_dir()?,
+    )
+    .map_err(|e| format!("Invalid script path '{}': {}", config.script_path, e))?;
+    let script_source = std::fs::read_to_string(script_path)
+        .map_err(|e| format!("Failed to read script '{}': {}", config.script_path, e))?;
 
-    log(&format!("Loading module: {}", main_module));
+    log(&format!("Executing script: {}", script_specifier));
 
     // Prepare the IPC extension with state injected into OpState
     let shared_receiver = ipc_ops::SharedEventReceiver(Arc::new(Mutex::new(event_receiver)));
@@ -89,34 +82,25 @@ async fn run_js_runtime(
         state.put(shared_receiver);
     }));
 
-    // Create the deno_core JsRuntime with TypeScript-capable module loader
+    // Create the deno_core JsRuntime with IPC extensions only.
+    // App dev setup is expected to provide a pre-bundled JavaScript file.
     let mut runtime = JsRuntime::new(RuntimeOptions {
-        module_loader: Some(Rc::new(module_loader::AppJsModuleLoader::new())),
         extensions: vec![console_ops::appjs_console::init(), ipc_ext],
         ..Default::default()
     });
 
-    log("JS runtime initialized, executing module...");
+    log("JS runtime initialized, executing script...");
 
-    // Load and evaluate the main module
-    let mod_id = runtime
-        .load_main_es_module(&main_module)
-        .await
-        .map_err(|e| format!("Failed to load module '{}': {}", main_module, e))?;
+    runtime
+        .execute_script(script_specifier.to_string(), script_source)
+        .map_err(|e| format!("Script execution error ({}): {}", config.script_path, e))?;
 
-    let result = runtime.mod_evaluate(mod_id);
-
-    // Run the event loop — this processes the module evaluation and any async ops
+    // Run the event loop to process async ops
     // (including the event listener loop if the user registered any listeners via appjs.events.on())
     runtime
         .run_event_loop(Default::default())
         .await
         .map_err(|e| format!("Event loop error: {}", e))?;
-
-    // Await the module evaluation result
-    result
-        .await
-        .map_err(|e| format!("Module evaluation error: {}", e))?;
 
     log("JS runtime finished");
 

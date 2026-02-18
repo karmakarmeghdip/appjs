@@ -1,6 +1,6 @@
 // test_ui.js -- Comprehensive UI test for AppJS
 // Exercises: body styling, all widget types, nested layouts, events
-import * as appjs from "../packages/appjs-runtime/src/index.ts";
+import * as appjs from "@appjs/runtime";
 
 // ---- Window setup ----
 appjs.window.setTitle("AppJS UI Test");

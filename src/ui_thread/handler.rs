@@ -1,20 +1,14 @@
 use masonry::app::{RenderRoot, RenderRootSignal};
 use masonry::widgets::TextArea;
-use masonry::widgets::{
-    Button, Checkbox, Flex, Label, ProgressBar, Prose, Slider, TextInput,
-};
+use masonry::widgets::{Button, Checkbox, Flex, Label, ProgressBar, Prose, Slider, TextInput};
 use masonry_winit::app::WindowId;
 use winit::dpi::PhysicalSize;
 
-use crate::ipc::{
-    JsCommand, LogLevel, UiEventSender, WidgetKind, WidgetStyle,
-};
+use crate::ipc::{JsCommand, LogLevel, UiEventSender, WidgetKind, WidgetStyle};
 
-use super::widget_manager::{WidgetManager, ROOT_FLEX_TAG};
-use super::styles::{
-    apply_flex_style, apply_box_props_to_widget, build_text_styles,
-};
 use super::creation::create_and_add_widget;
+use super::styles::{apply_box_props_to_widget, apply_flex_style, build_text_styles};
+use super::widget_manager::{ROOT_FLEX_TAG, WidgetManager};
 
 /// Process a single JsCommand by mutating the widget tree.
 pub fn handle_js_command(
@@ -212,7 +206,11 @@ pub fn handle_js_command(
             } else {
                 format!("\"{}\"", value)
             };
-            crate::js_thread::ipc_ops::apply_style_property_public(&mut style, &property, &quoted_value);
+            crate::js_thread::ipc_ops::apply_style_property_public(
+                &mut style,
+                &property,
+                &quoted_value,
+            );
             // Re-dispatch as SetWidgetStyle
             handle_js_command(
                 JsCommand::SetWidgetStyle { id, style },
@@ -275,7 +273,5 @@ pub fn handle_js_command(
             LogLevel::Warn => eprintln!("[JS:WARN] {}", message),
             LogLevel::Error => eprintln!("[JS:ERROR] {}", message),
         },
-
-
     }
 }

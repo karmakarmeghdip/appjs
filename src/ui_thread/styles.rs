@@ -1,5 +1,7 @@
 use masonry::core::{Properties, StyleProperty};
-use masonry::parley::style::{FontFamily, FontStack, FontStyle, FontWeight, GenericFamily, LineHeight};
+use masonry::parley::style::{
+    FontFamily, FontStack, FontStyle, FontWeight, GenericFamily, LineHeight,
+};
 use masonry::peniko::Color;
 use masonry::properties::types::{CrossAxisAlignment, Length, MainAxisAlignment};
 use masonry::properties::{
@@ -7,9 +9,7 @@ use masonry::properties::{
 };
 use masonry::widgets::Flex;
 
-use crate::ipc::{
-    ColorValue, CrossAlign, FontStyleValue, MainAlign, PaddingValue, WidgetStyle,
-};
+use crate::ipc::{ColorValue, CrossAlign, FontStyleValue, MainAlign, PaddingValue, WidgetStyle};
 
 // ── Color conversion helper ──
 
@@ -102,7 +102,12 @@ pub fn build_box_properties(style: &WidgetStyle) -> Properties {
                 bottom,
                 left,
             } => {
-                props = props.with(Padding { left: *left, top: *top, right: *right, bottom: *bottom });
+                props = props.with(Padding {
+                    left: *left,
+                    top: *top,
+                    right: *right,
+                    bottom: *bottom,
+                });
             }
         }
     }
@@ -112,7 +117,10 @@ pub fn build_box_properties(style: &WidgetStyle) -> Properties {
 
 /// Apply box-model style properties to an existing widget via insert_prop.
 /// Works on any WidgetMut that implements HasProperty for the relevant properties.
-pub fn apply_box_props_to_widget(widget: &mut masonry::core::WidgetMut<'_, impl masonry::core::Widget>, style: &WidgetStyle) {
+pub fn apply_box_props_to_widget(
+    widget: &mut masonry::core::WidgetMut<'_, impl masonry::core::Widget>,
+    style: &WidgetStyle,
+) {
     if let Some(ref color) = style.color {
         widget.insert_prop(ContentColor::new(color_value_to_peniko(color)));
     }
@@ -133,8 +141,18 @@ pub fn apply_box_props_to_widget(widget: &mut masonry::core::WidgetMut<'_, impl 
             PaddingValue::Uniform(v) => {
                 widget.insert_prop(Padding::all(*v));
             }
-            PaddingValue::Sides { top, right, bottom, left } => {
-                widget.insert_prop(Padding { left: *left, top: *top, right: *right, bottom: *bottom });
+            PaddingValue::Sides {
+                top,
+                right,
+                bottom,
+                left,
+            } => {
+                widget.insert_prop(Padding {
+                    left: *left,
+                    top: *top,
+                    right: *right,
+                    bottom: *bottom,
+                });
             }
         }
     }
@@ -145,23 +163,29 @@ pub fn apply_flex_style(flex: &mut masonry::core::WidgetMut<'_, Flex>, style: &W
     apply_box_props_to_widget(flex, style);
 
     if let Some(ref ca) = style.cross_axis_alignment {
-        Flex::set_cross_axis_alignment(flex, match ca {
-            CrossAlign::Start => CrossAxisAlignment::Start,
-            CrossAlign::Center => CrossAxisAlignment::Center,
-            CrossAlign::End => CrossAxisAlignment::End,
-            CrossAlign::Fill => CrossAxisAlignment::Fill,
-            CrossAlign::Baseline => CrossAxisAlignment::Baseline,
-        });
+        Flex::set_cross_axis_alignment(
+            flex,
+            match ca {
+                CrossAlign::Start => CrossAxisAlignment::Start,
+                CrossAlign::Center => CrossAxisAlignment::Center,
+                CrossAlign::End => CrossAxisAlignment::End,
+                CrossAlign::Fill => CrossAxisAlignment::Fill,
+                CrossAlign::Baseline => CrossAxisAlignment::Baseline,
+            },
+        );
     }
     if let Some(ref ma) = style.main_axis_alignment {
-        Flex::set_main_axis_alignment(flex, match ma {
-            MainAlign::Start => MainAxisAlignment::Start,
-            MainAlign::Center => MainAxisAlignment::Center,
-            MainAlign::End => MainAxisAlignment::End,
-            MainAlign::SpaceBetween => MainAxisAlignment::SpaceBetween,
-            MainAlign::SpaceAround => MainAxisAlignment::SpaceAround,
-            MainAlign::SpaceEvenly => MainAxisAlignment::SpaceEvenly,
-        });
+        Flex::set_main_axis_alignment(
+            flex,
+            match ma {
+                MainAlign::Start => MainAxisAlignment::Start,
+                MainAlign::Center => MainAxisAlignment::Center,
+                MainAlign::End => MainAxisAlignment::End,
+                MainAlign::SpaceBetween => MainAxisAlignment::SpaceBetween,
+                MainAlign::SpaceAround => MainAxisAlignment::SpaceAround,
+                MainAlign::SpaceEvenly => MainAxisAlignment::SpaceEvenly,
+            },
+        );
     }
     if let Some(gap) = style.gap {
         Flex::set_gap(flex, Length::px(gap));

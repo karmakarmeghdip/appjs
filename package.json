@@ -1,0 +1,20 @@
+{
+  "name": "appjs-monorepo",
+  "private": true,
+  "packageManager": "bun@1.2.22",
+  "workspaces": [
+    "packages/*",
+    "examples"
+  ],
+  "scripts": {
+    "install:js": "bun install",
+    "build:examples": "bun run --cwd examples build",
+    "run:counter": "bun run --cwd examples run:counter",
+    "run:styled-counter": "bun run --cwd examples run:styled-counter",
+    "run:test-ui": "bun run --cwd examples run:test-ui",
+    "run:test-simple": "bun run --cwd examples run:test-simple"
+  },
+  "dependencies": {
+    "@types/bun": "^1.3.9"
+  }
+}

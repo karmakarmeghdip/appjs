@@ -1,5 +1,5 @@
 // Minimal test: just create a label with text
-import * as appjs from "../packages/appjs-runtime/src/index.ts";
+import * as appjs from "@appjs/runtime";
 
 appjs.window.setTitle("Simple Test");
 appjs.ui.createWidget("lbl", "Label");
