@@ -40,6 +40,7 @@ Or from this folder:
 ```bash
 bun run run:counter
 bun run run:counter-ts
+bun run run:solid-apis
 bun run run:styled-counter
 bun run run:test-ui
 bun run run:test-simple

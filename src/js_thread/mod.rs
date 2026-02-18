@@ -5,10 +5,14 @@ mod console_ops;
 pub mod event_serializer;
 pub mod ipc_ops;
 pub mod style_parser;
+mod telemetry_stub;
+mod web_bootstrap;
 
 use std::sync::{Arc, Mutex};
+use std::rc::Rc;
 
-use deno_core::{JsRuntime, RuntimeOptions};
+use deno_runtime::deno_core::{JsRuntime, RuntimeOptions};
+use deno_runtime::deno_permissions::{PermissionsContainer, RuntimePermissionDescriptorParser};
 
 use crate::ipc::{JsCommand, JsThreadChannels, LogLevel};
 
@@ -50,6 +54,7 @@ async fn run_js_runtime(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let command_sender = channels.command_sender;
     let event_receiver = channels.event_receiver;
+    let fs = Arc::new(deno_runtime::deno_fs::RealFs);
 
     // Helper to log via IPC
     let log = |msg: &str| {
@@ -75,17 +80,59 @@ async fn run_js_runtime(
     // Prepare the IPC extension with state injected into OpState
     let shared_receiver = ipc_ops::SharedEventReceiver(Arc::new(Mutex::new(event_receiver)));
     let sender_for_state = command_sender.clone();
+    let permissions = PermissionsContainer::allow_all(Arc::new(
+        RuntimePermissionDescriptorParser::new(sys_traits::impls::RealSys),
+    ));
 
     let mut ipc_ext = ipc_ops::appjs_ipc::init();
     ipc_ext.op_state_fn = Some(Box::new(move |state| {
         state.put(sender_for_state);
         state.put(shared_receiver);
+        state.put::<PermissionsContainer>(permissions);
     }));
 
-    // Create the deno_core JsRuntime with IPC extensions only.
+    // Create the runtime with AppJS extensions and selected Deno Web APIs.
     // App dev setup is expected to provide a pre-bundled JavaScript file.
     let mut runtime = JsRuntime::new(RuntimeOptions {
-        extensions: vec![console_ops::appjs_console::init(), ipc_ext],
+        extensions: vec![
+            deno_runtime::deno_webidl::deno_webidl::init(),
+            deno_runtime::deno_web::deno_web::init(
+                Default::default(),
+                Default::default(),
+                deno_runtime::deno_web::InMemoryBroadcastChannel::default(),
+            ),
+            telemetry_stub::appjs_telemetry_stub::init(),
+            deno_runtime::deno_net::deno_net::init(None, None),
+            deno_runtime::deno_tls::deno_tls::init(),
+            deno_runtime::deno_fetch::deno_fetch::init(Default::default()),
+            deno_runtime::deno_cache::deno_cache::init(None),
+            deno_runtime::deno_websocket::deno_websocket::init(),
+            deno_runtime::deno_webstorage::deno_webstorage::init(None),
+            deno_runtime::deno_crypto::deno_crypto::init(None),
+            deno_runtime::deno_ffi::deno_ffi::init(None),
+            deno_runtime::deno_napi::deno_napi::init(None),
+            deno_runtime::deno_http::deno_http::init(Default::default()),
+            deno_runtime::ops::tty::deno_tty::init(),
+            deno_runtime::deno_io::deno_io::init(Some(Default::default())),
+            deno_runtime::deno_fs::deno_fs::init(fs.clone()),
+            deno_runtime::deno_os::deno_os::init(Default::default()),
+            deno_runtime::deno_process::deno_process::init(Default::default()),
+            deno_node_crypto::deno_node_crypto::init(),
+            deno_node_sqlite::deno_node_sqlite::init(),
+            deno_runtime::deno_node::deno_node::init::<
+                deno_resolver::npm::DenoInNpmPackageChecker,
+                deno_resolver::npm::NpmResolver<sys_traits::impls::RealSys>,
+                sys_traits::impls::RealSys,
+            >(None, fs.clone()),
+            deno_runtime::ops::runtime::deno_runtime::init(script_specifier.clone()),
+            deno_bundle_runtime::deno_bundle_runtime::init(None),
+            deno_runtime::shared::runtime::init(),
+            ipc_ext,
+            web_bootstrap::appjs_web_bootstrap::init(),
+        ],
+        extension_transpiler: Some(Rc::new(|specifier, source| {
+            deno_runtime::transpile::maybe_transpile_source(specifier, source)
+        })),
         ..Default::default()
     });
 

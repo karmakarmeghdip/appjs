@@ -9,6 +9,8 @@ appjs.body.setStyle({
     padding: 24,
 });
 
+console.log(fetch);
+
 const renderer = createAppJsRenderer(appjs);
 
 function Counter() {

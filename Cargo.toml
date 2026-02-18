@@ -7,6 +7,12 @@ edition = "2024"
 # Deno core — provides V8 JavaScript runtime and extension system
 deno_core = "0.385.0"
 deno_error = "0.7.1"
+deno_runtime = { version = "0.240.0", features = ["transpile"] }
+deno_resolver = "0.63.0"
+deno_node_crypto = "0.2.0"
+deno_node_sqlite = "0.2.0"
+deno_bundle_runtime = "0.19.0"
+sys_traits = "=0.1.24"
 
 # Masonry UI framework
 masonry = "0.4.0"
@@ -15,3 +21,10 @@ winit = "0.30.12"
 
 # Async runtime (required by deno_core internally)
 tokio = { version = "1", features = ["full"] }
+
+[profile.release]
+strip = true            # Automatically strip symbols from the binary (Massive size reduction)
+opt-level = "z"         # Optimize aggressively for size rather than speed
+lto = true              # Enable Link Time Optimization (Removes dead code across crates)
+codegen-units = 1       # Reduces parallel compilation but allows maximum size optimization
+panic = "abort"         # Removes panic unwinding infrastructure (Optional, but saves a few MBs)

@@ -29,6 +29,8 @@
 
         masonryPackages = with pkgs; commonPackages ++ [
           pkg-config
+          clang
+          llvmPackages.libclang
 
           fontconfig
 
@@ -50,6 +52,7 @@
         mkDevShell = packages: pkgs.mkShell {
           inherit packages;
           LD_LIBRARY_PATH = "${pkgs.lib.makeLibraryPath packages}";
+          LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
         };
       in
       {
