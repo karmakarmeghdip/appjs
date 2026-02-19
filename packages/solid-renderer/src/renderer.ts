@@ -1,5 +1,6 @@
 
 import { createRenderEffect, runWithOwner } from "solid-js/dist/solid.js";
+import type { Owner } from "solid-js";
 import { createRenderer } from "solid-js/universal";
 import {
   AppJsRenderer,
@@ -386,7 +387,7 @@ export function createAppJsRenderer(runtime: AppJsRuntime): AppJsRenderer {
         };
 
         if (input.owner) {
-          runWithOwner(input.owner as Parameters<typeof runWithOwner>[0], setupEffect);
+          runWithOwner(input.owner as Owner, setupEffect);
         } else {
           setupEffect();
         }
@@ -406,7 +407,7 @@ export function createAppJsRenderer(runtime: AppJsRuntime): AppJsRenderer {
 
       if (input.owner) {
         runWithOwner(
-          input.owner as Parameters<typeof runWithOwner>[0],
+          input.owner as Owner,
           setupChildrenEffect
         );
       } else {

@@ -1,6 +1,5 @@
-
 import { createComponent, getOwner } from "solid-js/dist/solid.js";
-import type { Component } from "solid-js";
+import type { Component, JSX as SolidJSX } from "solid-js";
 import type { AppJsCommonProps, AppJsIntrinsicElements, AppJsJsxNode } from "./types";
 
 type JsxProps = Record<string, unknown> | null | undefined;
@@ -32,14 +31,14 @@ export function Fragment(props: { children?: unknown }): unknown {
     return props.children ?? null;
 }
 
-export function jsx(type: unknown, props: JsxProps, ...children: unknown[]): unknown {
+export function jsx(type: unknown, props: JsxProps, ...children: unknown[]): SolidJSX.Element {
     const mergedProps = withChildren(props, children);
 
     if (typeof type === "function") {
         return createComponent(type as Component<Record<string, unknown>>, mergedProps);
     }
 
-    return createJsxNode(String(type), mergedProps);
+    return createJsxNode(String(type), mergedProps) as unknown as SolidJSX.Element;
 }
 
 export const jsxs = jsx;

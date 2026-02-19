@@ -8,8 +8,8 @@ use crate::ipc::{JsCommand, LogLevel, UiEventSender, WidgetKind, WidgetStyle};
 
 use super::creation::create_and_add_widget;
 use super::styles::{apply_box_props_to_widget, apply_flex_style, build_text_styles};
-use super::svg_widget::SvgWidget;
 use super::widget_manager::{ROOT_FLEX_TAG, WidgetManager};
+use super::widgets::svg_widget_impl::SvgWidget;
 
 /// Process a single JsCommand by mutating the widget tree.
 pub fn handle_js_command(

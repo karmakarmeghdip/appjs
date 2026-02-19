@@ -6,8 +6,8 @@ pub mod driver;
 pub mod handler;
 pub mod layout;
 pub mod styles;
-pub mod svg_widget;
 pub mod widget_manager;
+pub mod widgets;
 
 use masonry::core::NewWidget;
 use masonry::dpi::LogicalSize;

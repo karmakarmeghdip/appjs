@@ -1,3 +1,4 @@
+/// <reference path="./shim.d.ts" />
 
 export * from "./types";
 export * from "./renderer";
