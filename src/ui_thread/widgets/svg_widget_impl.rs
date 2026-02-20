@@ -77,6 +77,10 @@ impl SvgWidget {
 impl Widget for SvgWidget {
     type Action = NoAction;
 
+    fn accepts_pointer_interaction(&self) -> bool {
+        false
+    }
+
     fn register_children(&mut self, _ctx: &mut RegisterCtx<'_>) {}
 
     fn update(

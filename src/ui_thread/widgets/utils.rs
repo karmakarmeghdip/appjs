@@ -40,6 +40,20 @@ pub fn add_to_parent(
                 });
                 true
             }
+            WidgetKind::Button => {
+                let parent_wid = parent_info.widget_id;
+                render_root.edit_widget(parent_wid, |mut parent_widget| {
+                    let mut btn = parent_widget.downcast::<masonry::widgets::Button>();
+                    let mut child = masonry::widgets::Button::child_mut(&mut btn);
+                    let mut flex = child.downcast::<Flex>();
+                    if let Some(factor) = flex_factor {
+                        Flex::add_flex_child(&mut flex, new_widget, factor);
+                    } else {
+                        Flex::add_child(&mut flex, new_widget);
+                    }
+                });
+                true
+            }
             WidgetKind::SizedBox => {
                 let parent_wid = parent_info.widget_id;
                 render_root.edit_widget(parent_wid, |mut parent_widget| {

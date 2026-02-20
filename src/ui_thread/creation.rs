@@ -48,18 +48,6 @@ pub fn create_and_add_widget(
                 widget_id,
             );
         }
-        WidgetKind::IconButton => {
-            widgets::icon_button::create(
-                render_root,
-                widget_manager,
-                id,
-                parent_id,
-                text,
-                style,
-                child_index,
-                widget_id,
-            );
-        }
         WidgetKind::Svg => {
             widgets::svg::create(
                 render_root,

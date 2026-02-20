@@ -60,7 +60,6 @@ pub enum JsCommand {
 pub enum WidgetKind {
     Label,
     Button,
-    IconButton,
     Svg,
     TextInput,
     TextArea,

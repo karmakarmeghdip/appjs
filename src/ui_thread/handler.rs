@@ -68,12 +68,7 @@ pub fn handle_js_command(
                         });
                     }
                     WidgetKind::Button => {
-                        render_root.edit_widget(widget_id, |mut widget| {
-                            let mut btn = widget.downcast::<Button>();
-                            let mut child = Button::child_mut(&mut btn);
-                            let mut label = child.downcast::<Label>();
-                            Label::set_text(&mut label, text.clone());
-                        });
+                        println!("[UI] SetWidgetText on Button is deprecated since it is now a Flex container. Use a child <label> instead.");
                     }
                     WidgetKind::Svg => {
                         let svg_markup = text.clone();
@@ -165,30 +160,15 @@ pub fn handle_js_command(
                         });
                     }
                     WidgetKind::Button => {
-                        let text_styles = build_text_styles(&style);
                         render_root.edit_widget(widget_id, |mut widget| {
+                            // Apply box properties to the button itself
                             let mut button = widget.downcast::<Button>();
                             apply_box_props_to_widget(&mut button, &style);
 
+                            // Apply flex styles to the inner flex container
                             let mut child = Button::child_mut(&mut button);
-                            let mut label = child.downcast::<Label>();
-                            for s in &text_styles {
-                                Label::insert_style(&mut label, s.clone());
-                            }
-                            apply_box_props_to_widget(&mut label, &style);
-                        });
-                    }
-                    WidgetKind::IconButton => {
-                        render_root.edit_widget(widget_id, |mut widget| {
-                            let mut button = widget.downcast::<Button>();
-                            apply_box_props_to_widget(&mut button, &style);
-
-                            if let Some(svg) = style.svg_data.as_deref() {
-                                let svg_markup = svg.to_string();
-                                let mut child = Button::child_mut(&mut button);
-                                let mut svg_widget = child.downcast::<SvgWidget>();
-                                SvgWidget::set_svg_source(&mut svg_widget, svg_markup);
-                            }
+                            let mut flex = child.downcast::<Flex>();
+                            apply_flex_style(&mut flex, &style);
                         });
                     }
                     WidgetKind::Svg => {
