@@ -4,35 +4,21 @@
 pub mod style_parser;
 
 use std::io::ErrorKind;
-use std::process::{Command, Stdio};
 use std::thread;
 
 use crate::ipc::msgpack::{
     JsToRustMessage, RustToJsMessage, read_msgpack_frame, write_msgpack_frame,
 };
 use crate::ipc::{JsCommand, JsThreadChannels, LogLevel, WidgetKind};
-
-/// Configuration for the JS runtime
-pub struct JsRuntimeConfig {
-    /// Path to the bundled JavaScript file to execute
-    pub script_path: String,
-}
-
-impl Default for JsRuntimeConfig {
-    fn default() -> Self {
-        Self {
-            script_path: "./main.js".to_string(),
-        }
-    }
-}
+use crate::socket::{bind_socket, get_socket_path};
 
 /// Run the JS runtime bridge on a background thread.
 ///
-/// This spawns Bun as an independent process and communicates via
-/// length-prefixed MsgPack frames over stdio.
-pub fn run_js_thread(channels: JsThreadChannels, config: JsRuntimeConfig) {
-    if let Err(e) = run_js_process(channels, config) {
-        eprintln!("[JS] Runtime bridge error: {e}");
+/// This binds a Unix Domain Socket and communicates via
+/// length-prefixed MsgPack frames.
+pub fn run_js_thread(channels: JsThreadChannels) {
+    if let Err(e) = run_socket_server(channels) {
+        eprintln!("[JS] Runtime socket error: {e}");
     }
 }
 
@@ -127,37 +113,32 @@ fn handle_js_message(message: JsToRustMessage) -> Option<JsCommand> {
     }
 }
 
-fn run_js_process(
+fn run_socket_server(
     channels: JsThreadChannels,
-    config: JsRuntimeConfig,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let command_sender = channels.command_sender;
     let event_receiver = channels.event_receiver;
 
-    let mut child = Command::new("bun")
-        .arg("run")
-        .arg(&config.script_path)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .map_err(|e| format!("Failed to spawn bun process: {e}"))?;
+    let socket_path = get_socket_path();
+    println!("[JS] Binding socket to {}", socket_path);
+    
+    let listener = bind_socket(&socket_path)
+        .map_err(|e| format!("Failed to bind socket: {e}"))?;
 
-    let mut child_stdin = child
-        .stdin
-        .take()
-        .ok_or_else(|| "Failed to capture Bun stdin".to_string())?;
-    let mut child_stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| "Failed to capture Bun stdout".to_string())?;
+    println!("[JS] Waiting for client connection...");
+    
+    // We just wait for the first client for now
+    let (mut stream, _) = listener.accept()?;
+    let mut read_stream = stream.try_clone()?;
+    
+    println!("[JS] Client connected");
 
     let command_sender_clone = command_sender.clone();
-    let stdout_thread = thread::Builder::new()
-        .name("js-bridge-stdout".to_string())
+    let read_thread = thread::Builder::new()
+        .name("js-bridge-read".to_string())
         .spawn(move || {
             loop {
-                match read_msgpack_frame::<_, JsToRustMessage>(&mut child_stdout) {
+                match read_msgpack_frame::<_, JsToRustMessage>(&mut read_stream) {
                     Ok(message) => {
                         if let Some(cmd) = handle_js_message(message) {
                             let _ = command_sender_clone.send(cmd);
@@ -167,7 +148,7 @@ fn run_js_process(
                     Err(e) => {
                         let _ = command_sender_clone.send(JsCommand::Log {
                             level: LogLevel::Error,
-                            message: format!("Failed to decode MsgPack from Bun: {e}"),
+                            message: format!("Failed to decode MsgPack from socket: {e}"),
                         });
                         break;
                     }
@@ -177,32 +158,24 @@ fn run_js_process(
 
     for event in event_receiver {
         let frame = RustToJsMessage::UiEvent { event };
-        if let Err(e) = write_msgpack_frame(&mut child_stdin, &frame) {
+        if let Err(e) = write_msgpack_frame(&mut stream, &frame) {
             let _ = command_sender.send(JsCommand::Log {
                 level: LogLevel::Warn,
-                message: format!("Bun bridge stdin write failed: {e}"),
+                message: format!("Socket bridge write failed: {e}"),
             });
             break;
         }
     }
 
-    let _ = write_msgpack_frame(&mut child_stdin, &RustToJsMessage::Shutdown);
-    drop(child_stdin);
+    let _ = write_msgpack_frame(&mut stream, &RustToJsMessage::Shutdown);
 
-    let status = child.wait()?;
-    let _ = stdout_thread.join();
+    let _ = read_thread.join();
+    let _ = std::fs::remove_file(socket_path);
 
-    if status.success() {
-        let _ = command_sender.send(JsCommand::Log {
-            level: LogLevel::Info,
-            message: "Bun process exited cleanly".to_string(),
-        });
-    } else {
-        let _ = command_sender.send(JsCommand::Log {
-            level: LogLevel::Error,
-            message: format!("Bun process exited with status: {status}"),
-        });
-    }
+    let _ = command_sender.send(JsCommand::Log {
+        level: LogLevel::Info,
+        message: "Socket connection closed".to_string(),
+    });
 
     Ok(())
 }

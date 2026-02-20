@@ -1,5 +1,11 @@
 import process from "node:process";
+import net from "node:net";
+import os from "node:os";
 import { decode, encode } from "@msgpack/msgpack";
+
+const SOCKET_PATH = process.platform === "win32"
+    ? `${os.tmpdir()}\\appjs.sock`
+    : "/tmp/appjs.sock";
 
 export type BridgeEvent = {
     type: string;
@@ -42,15 +48,16 @@ export type Bridge = {
 
 type AppJsGlobal = typeof globalThis & {
     __APPJS_BRIDGE__?: Bridge;
+    __APPJS_SOCKET__?: net.Socket;
     __APPJS_CONSOLE_PATCHED__?: boolean;
 };
 
-function writeFrame(message: JsToRustMessage): void {
+function writeFrame(socket: net.Socket, message: JsToRustMessage): void {
     const payload = Buffer.from(encode(message));
     const frame = Buffer.allocUnsafe(4 + payload.length);
     frame.writeUInt32LE(payload.length, 0);
     payload.copy(frame, 4);
-    process.stdout.write(frame);
+    socket.write(frame);
 }
 
 function mapUiEvent(event: unknown): BridgeEvent {
@@ -106,7 +113,11 @@ function patchConsole(bridge: Bridge): void {
 
     const send = (level: "debug" | "info" | "warn" | "error", args: unknown[]) => {
         try {
-            bridge.send({ type: "log", level, message: formatLogArgs(args) });
+            if (globalScope.__APPJS_SOCKET__ && !globalScope.__APPJS_SOCKET__.destroyed) {
+                bridge.send({ type: "log", level, message: formatLogArgs(args) });
+            } else {
+                process.stderr.write(`${formatLogArgs(args)}\n`);
+            }
         } catch {
             process.stderr.write(`${formatLogArgs(args)}\n`);
         }
@@ -127,10 +138,17 @@ export function initAppJsBridge(): Bridge {
 
     const listeners = new Set<(event: BridgeEvent) => void>();
     let readBuffer = Buffer.alloc(0);
+    const messageQueue: JsToRustMessage[] = [];
+    let isConnected = false;
+    let socket: net.Socket | null = null;
 
     const bridge: Bridge = {
         send(message) {
-            writeFrame(message);
+            if (isConnected && socket && !socket.destroyed) {
+                writeFrame(socket, message);
+            } else {
+                messageQueue.push(message);
+            }
         },
         onEvent(callback) {
             listeners.add(callback);
@@ -139,6 +157,25 @@ export function initAppJsBridge(): Bridge {
             };
         },
     };
+
+    globalScope.__APPJS_BRIDGE__ = bridge;
+
+    socket = net.createConnection(SOCKET_PATH, () => {
+        isConnected = true;
+        globalScope.__APPJS_SOCKET__ = socket!;
+        patchConsole(bridge);
+        bridge.send({ type: "ready" });
+
+        for (const msg of messageQueue) {
+            writeFrame(socket!, msg);
+        }
+        messageQueue.length = 0;
+    });
+
+    socket.on("error", (err) => {
+        process.stderr.write(`[appjs bridge] Socket connection error: ${String(err)}\n`);
+        process.exit(1);
+    });
 
     const emitEvent = (event: BridgeEvent) => {
         for (const listener of listeners) {
@@ -158,6 +195,7 @@ export function initAppJsBridge(): Bridge {
                 return;
             }
             if (message?.type === "shutdown") {
+                if (socket) socket.end();
                 process.exit(0);
             }
         } catch (err) {
@@ -178,20 +216,15 @@ export function initAppJsBridge(): Bridge {
         }
     };
 
-    process.stdin.on("data", (chunk) => {
+    socket.on("data", (chunk) => {
         readBuffer = Buffer.concat([readBuffer, Buffer.from(chunk)]);
         processReadBuffer();
     });
 
-    process.stdin.on("end", () => {
+    socket.on("end", () => {
         process.exit(0);
     });
 
-    process.stdin.resume();
-
-    globalScope.__APPJS_BRIDGE__ = bridge;
-    patchConsole(bridge);
-    bridge.send({ type: "ready" });
     return bridge;
 }
 

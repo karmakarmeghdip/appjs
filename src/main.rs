@@ -12,12 +12,13 @@
 
 mod ipc;
 mod js_thread;
+mod socket;
 mod ui_thread;
 
 use std::thread;
 
 use ipc::IpcChannels;
-use js_thread::{JsRuntimeConfig, run_js_thread};
+use js_thread::run_js_thread;
 use ui_thread::{prepare_ui, run_ui_blocking};
 
 fn normalize_script_path_for_bun(path: &std::path::Path) -> String {
@@ -47,32 +48,7 @@ fn main() {
         println!("[Main] WGPU backend defaulted to OpenGL (WGPU_BACKEND=gl)");
     }
 
-    // Parse CLI arguments: expect a bundled JS file path as the first argument
-    let args: Vec<String> = std::env::args().collect();
-    let script_path = match args.get(1) {
-        Some(path) => path.clone(),
-        None => {
-            eprintln!("Usage: appjs <bundle.js>");
-            eprintln!("  Example: appjs ./dist/app.bundle.js");
-            std::process::exit(1);
-        }
-    };
-
-    // Resolve to absolute path
-    let script_path = std::path::Path::new(&script_path);
-    let absolute_path = match script_path.canonicalize() {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!(
-                "Error: Cannot resolve script path '{}': {}",
-                script_path.display(),
-                e
-            );
-            std::process::exit(1);
-        }
-    };
-
-    println!("[Main] Running script: {}", absolute_path.display());
+    println!("[Main] Operating in Client-Server Socket IPC Mode");
 
     // Phase 1: Build the EventLoop and extract EventLoopProxy (non-blocking).
     // This must happen before spawning the JS thread so the proxy can be shared.
@@ -86,17 +62,12 @@ fn main() {
     let ui_channels = channels.ui_thread;
     let js_channels = channels.js_thread;
 
-    // Configure the JS runtime
-    let js_config = JsRuntimeConfig {
-        script_path: normalize_script_path_for_bun(&absolute_path),
-    };
-
     // Phase 3: Spawn the JS runtime thread with EventLoopProxy-based command sender.
     let js_thread_handle = thread::Builder::new()
         .name("js-runtime".to_string())
         .spawn(move || {
             println!("[Main] JS thread started");
-            run_js_thread(js_channels, js_config);
+            run_js_thread(js_channels);
             println!("[Main] JS thread finished");
         })
         .expect("Failed to spawn JS runtime thread");
