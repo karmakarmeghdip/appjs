@@ -95,4 +95,4 @@ appjs.events.on("widgetAction", (e: AppJsEvent) => {
 // Fetch the first image on startup
 fetchImage();
 
-appjs.log.info("Image viewer app initialized!");
+console.info("Image viewer app initialized!");

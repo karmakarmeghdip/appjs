@@ -18,22 +18,26 @@ appjs.body.setStyle({ background: "#1e1e2e", padding: 24 });
 
 const renderer = createAppJsRenderer(appjs);
 
-// Pre-fetch the first image before rendering
-const initialData = await fetchImageBytes();
-
 function ImageViewer() {
-  const [status, setStatus] = createSignal(`Loaded (${initialData.byteLength} bytes)`);
+  const [status, setStatus] = createSignal("Idle");
+  const [isLoading, setIsLoading] = createSignal(false);
+  const [imageData, setImageData] = createSignal<Uint8Array | null>(null);
 
   async function refetch() {
+    setIsLoading(true);
     setStatus("Fetching image...");
     try {
       const data = await fetchImageBytes();
-      appjs.ui.setImageData("img", data);
+      setImageData(data);
       setStatus(`Loaded (${data.byteLength} bytes)`);
     } catch (err) {
       setStatus(`Error: ${err}`);
+    } finally {
+      setIsLoading(false);
     }
   }
+
+  void refetch();
 
   return (
     <column gap={16} crossAxisAlignment="center">
@@ -48,13 +52,32 @@ function ImageViewer() {
         fontSize={14}
         color="#a6adc8"
       />
-      <image
-        id="img"
-        data={initialData}
-        objectFit="contain"
-        width={WIDTH}
-        height={HEIGHT}
-      />
+      <column width={WIDTH} height={HEIGHT} crossAxisAlignment="center" mainAxisAlignment="center">
+        {() => {
+          if (isLoading()) {
+            return (
+              <box width={20} height={20}>
+                <spinner />
+              </box>
+            );
+          }
+
+          const data = imageData();
+          if (data) {
+            return (
+              <image
+                id="img"
+                data={data}
+                objectFit="contain"
+                width={WIDTH}
+                height={HEIGHT}
+              />
+            );
+          }
+
+          return null;
+        }}
+      </column>
       <button onClick={() => refetch()}>
         <label text="🔄  New Image" color="white" />
       </button>

@@ -62,4 +62,4 @@ function Counter() {
 }
 
 renderer.render(() => <Counter />);
-appjs.log.info("Solid TSX demo initialized");
+console.info("Solid TSX demo initialized");

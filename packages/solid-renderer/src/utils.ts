@@ -151,20 +151,34 @@ export function isHostNodeLike(value: unknown): value is HostNode {
   );
 }
 
+export function resolveChildValue(input: unknown, maxDepth = 32): unknown {
+  let value = input;
+  let depth = 0;
+
+  while (typeof value === "function" && depth < maxDepth) {
+    value = (value as () => unknown)();
+    depth += 1;
+  }
+
+  return value;
+}
+
 export function normalizeChildrenArray(input: unknown): unknown[] {
-  if (Array.isArray(input)) {
+  const resolved = resolveChildValue(input);
+
+  if (Array.isArray(resolved)) {
     const out: unknown[] = [];
-    for (const entry of input) {
+    for (const entry of resolved) {
       out.push(...normalizeChildrenArray(entry));
     }
     return out;
   }
 
-  if (input === null || input === undefined || input === false || input === true) {
+  if (resolved === null || resolved === undefined || resolved === false || resolved === true) {
     return [];
   }
 
-  return [input];
+  return [resolved];
 }
 
 export function isReactiveAccessorProp(name: string, value: unknown): value is () => unknown {

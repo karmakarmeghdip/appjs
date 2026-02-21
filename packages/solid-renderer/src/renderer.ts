@@ -34,6 +34,7 @@ import {
   isReactiveAccessorProp,
   unlinkFromParent,
   linkIntoParent,
+  resolveChildValue,
 } from "./utils";
 
 export function createAppJsRenderer(runtime: AppJsRuntime): AppJsRenderer {
@@ -41,6 +42,15 @@ export function createAppJsRenderer(runtime: AppJsRuntime): AppJsRenderer {
   const jsxNodeMap = new WeakMap<object, HostNode>();
   let fallbackId = 0;
   let unsubscribeEvents: (() => void) | null = null;
+
+  function hasDynamicChildren(input: unknown): boolean {
+    if (typeof input === "function") return true;
+    if (!Array.isArray(input)) return false;
+    for (const entry of input) {
+      if (hasDynamicChildren(entry)) return true;
+    }
+    return false;
+  }
 
   function nextWidgetId(prefix: string): string {
     if (runtime.nextId) return runtime.nextId();
@@ -309,11 +319,15 @@ export function createAppJsRenderer(runtime: AppJsRuntime): AppJsRenderer {
   }
 
   function unmountSubtree(node: HostNode): void {
+    const children: HostNode[] = [];
     let child = node.firstChild;
     while (child) {
-      const next = child.nextSibling;
-      unmountSubtree(child);
-      child = next;
+      children.push(child);
+      child = child.nextSibling;
+    }
+
+    for (let i = children.length - 1; i >= 0; i -= 1) {
+      unmountSubtree(children[i]);
     }
 
     if (node.nodeType === "element") {
@@ -395,12 +409,17 @@ export function createAppJsRenderer(runtime: AppJsRuntime): AppJsRenderer {
   }
 
   function clearElementChildren(element: HostElement): void {
+    const children: HostNode[] = [];
     let child = element.firstChild;
     while (child) {
-      const next = child.nextSibling;
-      unmountSubtree(child);
-      child = next;
+      children.push(child);
+      child = child.nextSibling;
     }
+
+    for (let i = children.length - 1; i >= 0; i -= 1) {
+      unmountSubtree(children[i]);
+    }
+
     element.firstChild = null;
   }
 
@@ -408,6 +427,7 @@ export function createAppJsRenderer(runtime: AppJsRuntime): AppJsRenderer {
     clearElementChildren(element);
 
     const children = normalizeChildrenArray(childrenValue);
+
     for (const child of children) {
       const hostChild = materializeHostNode(child);
       if (!hostChild) continue;
@@ -416,27 +436,29 @@ export function createAppJsRenderer(runtime: AppJsRuntime): AppJsRenderer {
   }
 
   function materializeHostNode(input: unknown): HostNode | null {
-    if (isHostNodeLike(input)) {
-      return input;
+    const resolved = resolveChildValue(input);
+
+    if (isHostNodeLike(resolved)) {
+      return resolved;
     }
 
-    if (typeof input === "string" || typeof input === "number") {
-      return buildTextNode(String(input));
+    if (typeof resolved === "string" || typeof resolved === "number") {
+      return buildTextNode(String(resolved));
     }
 
-    if (!isAppJsJsxNode(input)) {
+    if (!isAppJsJsxNode(resolved)) {
       return null;
     }
 
-    const cached = jsxNodeMap.get(input as object);
+    const cached = jsxNodeMap.get(resolved as object);
     if (cached) {
       return cached;
     }
 
-    const element = buildElementNode(input.type);
-    jsxNodeMap.set(input as object, element);
+    const element = buildElementNode(resolved.type);
+    jsxNodeMap.set(resolved as object, element);
 
-    const props = input.props ?? {};
+    const props = resolved.props ?? {};
     for (const [key, value] of Object.entries(props)) {
       if (key === "children") continue;
 
@@ -450,8 +472,8 @@ export function createAppJsRenderer(runtime: AppJsRuntime): AppJsRenderer {
           });
         };
 
-        if (input.owner) {
-          runWithOwner(input.owner as Owner, setupEffect);
+        if (resolved.owner) {
+          runWithOwner(resolved.owner as Owner, setupEffect);
         } else {
           setupEffect();
         }
@@ -462,16 +484,17 @@ export function createAppJsRenderer(runtime: AppJsRuntime): AppJsRenderer {
     }
 
     const childrenProp = props.children;
-    if (typeof childrenProp === "function") {
+    if (typeof childrenProp === "function" || hasDynamicChildren(childrenProp)) {
       const setupChildrenEffect = () => {
         createRenderEffect(() => {
-          reconcileElementChildren(element, childrenProp());
+          const resolvedChildren = typeof childrenProp === "function" ? childrenProp() : childrenProp;
+          reconcileElementChildren(element, resolvedChildren);
         });
       };
 
-      if (input.owner) {
+      if (resolved.owner) {
         runWithOwner(
-          input.owner as Owner,
+          resolved.owner as Owner,
           setupChildrenEffect
         );
       } else {

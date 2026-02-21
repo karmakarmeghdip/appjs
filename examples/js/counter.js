@@ -26,7 +26,7 @@ function updateCount() {
 
 appjs.events.on("widgetAction", (e) => {
     // Log the event for debugging
-    appjs.log.info(`Action on ${e.widgetId}: ${e.action}`);
+    console.info(`Action on ${e.widgetId}: ${e.action}`);
 
     if (e.widgetId === "incBtn") {
         count++;
@@ -37,4 +37,4 @@ appjs.events.on("widgetAction", (e) => {
     }
 });
 
-appjs.log.info("Counter app initialized. Waiting for clicks...");
+console.info("Counter app initialized. Waiting for clicks...");

@@ -1,6 +1,8 @@
 use masonry::app::{RenderRoot, RenderRootSignal};
 use masonry::widgets::TextArea;
-use masonry::widgets::{Button, Checkbox, Flex, Label, ProgressBar, Prose, Slider, TextInput};
+use masonry::widgets::{
+    Button, Checkbox, Flex, Label, ProgressBar, Prose, SizedBox, Slider, TextInput, ZStack,
+};
 use masonry_winit::app::WindowId;
 use winit::dpi::PhysicalSize;
 
@@ -251,21 +253,78 @@ pub fn handle_js_command(
         }
 
         JsCommand::RemoveWidget { id } => {
-            if let Some(info) = widget_manager.widgets.get(&id) {
+            if let Some(info) = widget_manager.widgets.get(&id).cloned() {
                 let parent_key = info.parent_id.as_deref().unwrap_or("__root__");
                 let child_index = info.child_index;
+                let sibling_count = widget_manager.current_child_count(parent_key);
+
+                if sibling_count == 0 {
+                    eprintln!(
+                        "[UI] RemoveWidget '{}' has no siblings under parent '{}'; syncing metadata only",
+                        id, parent_key
+                    );
+                    widget_manager.remove_widget_subtree(&id);
+                    return;
+                }
+
+                let safe_index = if child_index < sibling_count {
+                    child_index
+                } else {
+                    eprintln!(
+                        "[UI] RemoveWidget '{}' stale index {} (siblings={}) under parent '{}'; clamping",
+                        id, child_index, sibling_count, parent_key
+                    );
+                    sibling_count - 1
+                };
 
                 if parent_key == "__root__" {
                     render_root.edit_widget_with_tag(ROOT_FLEX_TAG, |mut flex| {
-                        Flex::remove_child(&mut flex, child_index);
+                        Flex::remove_child(&mut flex, safe_index);
                     });
                 } else if let Some(parent_info) = widget_manager.widgets.get(parent_key) {
                     let parent_wid = parent_info.widget_id;
-                    render_root.edit_widget(parent_wid, |mut parent_widget| {
-                        let mut flex = parent_widget.downcast::<Flex>();
-                        Flex::remove_child(&mut flex, child_index);
-                    });
+                    match parent_info.kind {
+                        WidgetKind::Flex | WidgetKind::Container => {
+                            render_root.edit_widget(parent_wid, |mut parent_widget| {
+                                let mut flex = parent_widget.downcast::<Flex>();
+                                Flex::remove_child(&mut flex, safe_index);
+                            });
+                        }
+                        WidgetKind::Button => {
+                            render_root.edit_widget(parent_wid, |mut parent_widget| {
+                                let mut button = parent_widget.downcast::<Button>();
+                                let mut child = Button::child_mut(&mut button);
+                                let mut flex = child.downcast::<Flex>();
+                                Flex::remove_child(&mut flex, safe_index);
+                            });
+                        }
+                        WidgetKind::SizedBox => {
+                            render_root.edit_widget(parent_wid, |mut parent_widget| {
+                                let mut sbox = parent_widget.downcast::<SizedBox>();
+                                SizedBox::remove_child(&mut sbox);
+                            });
+                        }
+                        WidgetKind::ZStack => {
+                            render_root.edit_widget(parent_wid, |mut parent_widget| {
+                                let mut zstack = parent_widget.downcast::<ZStack>();
+                                ZStack::remove_child(&mut zstack, safe_index);
+                            });
+                        }
+                        _ => {
+                            eprintln!(
+                                "[UI] Parent '{}' kind {:?} does not support child removal for '{}'",
+                                parent_key, parent_info.kind, id
+                            );
+                        }
+                    }
+                } else {
+                    eprintln!(
+                        "[UI] Parent widget '{}' not found for RemoveWidget '{}'; syncing metadata only",
+                        parent_key, id
+                    );
                 }
+
+                widget_manager.remove_widget_subtree(&id);
 
                 println!("[UI] Removed widget '{}'", id);
             } else {

@@ -24,6 +24,18 @@ use ui_thread::{prepare_ui, run_ui_blocking};
 fn main() {
     println!("AppJS Starting...");
 
+    let rust_log = std::env::var("RUST_LOG").ok();
+    let should_override_log = match rust_log.as_deref() {
+        Some(value) => value.contains("debug") || value.contains("trace"),
+        None => true,
+    };
+    if should_override_log {
+        unsafe {
+            std::env::set_var("RUST_LOG", "warn");
+        }
+        println!("[Main] RUST_LOG set to info");
+    }
+
     #[cfg(target_os = "windows")]
     if std::env::var_os("WGPU_BACKEND").is_none() {
         unsafe {

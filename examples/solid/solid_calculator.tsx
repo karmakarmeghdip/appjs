@@ -354,4 +354,4 @@ function Calculator() {
 }
 
 renderer.render(() => <Calculator />);
-appjs.log.info("Solid calculator example initialized");
+console.info("Solid calculator example initialized");

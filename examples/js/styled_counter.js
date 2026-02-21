@@ -79,4 +79,4 @@ appjs.events.on("widgetAction", (e) => {
     }
 });
 
-appjs.log.info("Styled counter app initialized.");
+console.info("Styled counter app initialized.");

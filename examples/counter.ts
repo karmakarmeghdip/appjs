@@ -85,4 +85,4 @@ appjs.events.on("widgetAction", (e: AppJsEvent) => {
     updateDisplay(state);
 });
 
-appjs.log.info("TypeScript counter app initialized!");
+console.info("TypeScript counter app initialized!");
