@@ -31,6 +31,7 @@ pub fn handle_js_command(
             parent_id,
             text,
             style,
+            params,
         } => {
             create_and_add_widget(
                 render_root,
@@ -40,6 +41,7 @@ pub fn handle_js_command(
                 parent_id,
                 text,
                 style,
+                params,
             );
         }
 
@@ -68,7 +70,9 @@ pub fn handle_js_command(
                         });
                     }
                     WidgetKind::Button => {
-                        println!("[UI] SetWidgetText on Button is deprecated since it is now a Flex container. Use a child <label> instead.");
+                        println!(
+                            "[UI] SetWidgetText on Button is deprecated since it is now a Flex container. Use a child <label> instead."
+                        );
                     }
                     WidgetKind::Svg => {
                         let svg_markup = text.clone();
@@ -298,5 +302,21 @@ pub fn handle_js_command(
             LogLevel::Warn => eprintln!("[JS:WARN] {}", message),
             LogLevel::Error => eprintln!("[JS:ERROR] {}", message),
         },
+
+        JsCommand::SetImageData { id, data } => {
+            if let Some(info) = widget_manager.widgets.get(&id) {
+                if matches!(info.kind, WidgetKind::Image) {
+                    let widget_id = info.widget_id;
+                    super::widgets::image::update_data(render_root, widget_id, &data);
+                } else {
+                    println!(
+                        "[UI] SetImageData on {:?} not supported, id={}",
+                        info.kind, id
+                    );
+                }
+            } else {
+                eprintln!("[UI] Widget '{}' not found for SetImageData", id);
+            }
+        }
     }
 }

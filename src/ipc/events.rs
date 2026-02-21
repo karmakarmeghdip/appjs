@@ -16,12 +16,3 @@ pub enum WidgetActionKind {
     Click,
     ValueChanged(f64),
 }
-
-/// Keyboard modifier state
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct KeyModifiers {
-    pub shift: bool,
-    pub ctrl: bool,
-    pub alt: bool,
-    pub meta: bool,
-}

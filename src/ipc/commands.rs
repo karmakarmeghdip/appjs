@@ -15,6 +15,7 @@ pub enum JsCommand {
         parent_id: Option<String>,
         text: Option<String>,
         style: Option<WidgetStyle>,
+        params: Option<WidgetParams>,
     },
 
     /// Remove a widget
@@ -39,6 +40,9 @@ pub enum JsCommand {
     /// Set progress on a ProgressBar (0.0 to 1.0)
     SetWidgetValue { id: String, value: f64 },
 
+    /// Set image data on an Image widget (raw file bytes)
+    SetImageData { id: String, data: Vec<u8> },
+
     /// Set whether a checkbox is checked
     SetWidgetChecked { id: String, checked: bool },
 
@@ -61,6 +65,7 @@ pub enum WidgetKind {
     Label,
     Button,
     Svg,
+    Image,
     TextInput,
     TextArea,
     Checkbox,
@@ -75,6 +80,18 @@ pub enum WidgetKind {
     ZStack,
     Portal,
     Custom(String),
+}
+
+/// Widget-specific parameters that carry data beyond text/style.
+/// This enum allows each widget type to define its own creation data
+/// without bloating the generic CreateWidget message.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum WidgetParams {
+    /// Raw image file bytes (PNG/JPEG/WebP/etc.) + optional object-fit mode
+    Image {
+        data: Vec<u8>,
+        object_fit: Option<String>,
+    },
 }
 
 /// Comprehensive styling that can be applied to widgets

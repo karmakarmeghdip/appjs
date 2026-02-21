@@ -2,7 +2,7 @@ use std::io;
 use std::path::Path;
 
 #[cfg(unix)]
-pub use std::os::unix::net::{UnixListener, UnixStream};
+pub use std::os::unix::net::UnixListener;
 
 #[cfg(windows)]
 pub use uds_windows::UnixListener;

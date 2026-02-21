@@ -6,6 +6,7 @@ import {
     log as writeLog,
     removeWidget,
     resizeWindow,
+    setImageData,
     setStyleProperty,
     setTitle,
     setWidgetChecked,
@@ -40,8 +41,10 @@ export const ui = {
         kind: string,
         parentId: string | null,
         text: string | null,
-        style: AppJsStyle | null
-    ): void => createWidget(id, kind, parentId ?? null, text ?? null, style ?? null),
+        style: AppJsStyle | null,
+        params?: Record<string, unknown> | null,
+        data?: Uint8Array | null
+    ): void => createWidget(id, kind, parentId ?? null, text ?? null, style ?? null, params ?? null, data ?? null),
     removeWidget,
     setText: setWidgetText,
     setVisible: setWidgetVisible,
@@ -49,6 +52,7 @@ export const ui = {
     setChecked: setWidgetChecked,
     setStyle: setWidgetStyle,
     setStyleProperty,
+    setImageData,
 
     setWidgetText,
     setWidgetVisible,
@@ -170,6 +174,27 @@ export function portal(id: string, parentId: string | null, style?: AppJsStyle):
 export { exit };
 export type { AppJsStyle, AppJsEvent };
 
+export function image(
+    id: string,
+    parentId: string | null,
+    data: Uint8Array,
+    style?: AppJsStyle & { objectFit?: string }
+): string {
+    const objectFit = style?.objectFit;
+    const { objectFit: _of, ...restStyle } = style ?? {};
+    const paramsJson = objectFit ? { object_fit: objectFit } : null;
+    ui.createWidget(
+        id,
+        "image",
+        parentId,
+        null,
+        Object.keys(restStyle).length > 0 ? restStyle : null,
+        paramsJson,
+        data
+    );
+    return id;
+}
+
 export const app = {
     window,
     body,
@@ -181,6 +206,7 @@ export const app = {
     button,
     iconButton,
     svg,
+    image,
     flex,
     row,
     column,

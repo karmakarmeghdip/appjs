@@ -3,7 +3,7 @@ use masonry::core::WidgetId;
 
 use super::widget_manager::WidgetManager;
 use super::widgets;
-use crate::ipc::{WidgetKind, WidgetStyle};
+use crate::ipc::{WidgetKind, WidgetParams, WidgetStyle};
 
 pub fn create_and_add_widget(
     render_root: &mut RenderRoot,
@@ -13,6 +13,7 @@ pub fn create_and_add_widget(
     parent_id: Option<String>,
     text: Option<String>,
     style: Option<WidgetStyle>,
+    params: Option<WidgetParams>,
 ) {
     println!(
         "[UI] Creating widget: id={}, kind={:?}, parent={:?}",
@@ -206,6 +207,18 @@ pub fn create_and_add_widget(
                 parent_id,
                 text,
                 style,
+                child_index,
+                widget_id,
+            );
+        }
+        WidgetKind::Image => {
+            widgets::image::create(
+                render_root,
+                widget_manager,
+                id,
+                parent_id,
+                style,
+                params,
                 child_index,
                 widget_id,
             );

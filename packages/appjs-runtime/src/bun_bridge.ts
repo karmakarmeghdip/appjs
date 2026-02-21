@@ -50,6 +50,8 @@ export type JsToRustMessage =
         parent_id: string | null;
         text: string | null;
         style_json: string | null;
+        widget_params_json: string | null;
+        data: Uint8Array | null;
     }
     | { type: "removeWidget"; id: string }
     | { type: "setWidgetText"; id: string; text: string }
@@ -62,7 +64,8 @@ export type JsToRustMessage =
     | { type: "closeWindow" }
     | { type: "log"; level: string; message: string }
     | { type: "exitApp" }
-    | { type: "ready" };
+    | { type: "ready" }
+    | { type: "setImageData"; id: string; data: Uint8Array };
 
 type RustToJsMessage =
     | { type: "uiEvent"; event: unknown }

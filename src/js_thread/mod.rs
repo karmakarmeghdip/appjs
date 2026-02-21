@@ -9,7 +9,7 @@ use std::thread;
 use crate::ipc::msgpack::{
     JsToRustMessage, RustToJsMessage, read_msgpack_frame, write_msgpack_frame,
 };
-use crate::ipc::{JsCommand, JsThreadChannels, LogLevel, WidgetKind};
+use crate::ipc::{JsCommand, JsThreadChannels, LogLevel, WidgetKind, WidgetParams};
 use crate::socket::{bind_socket, get_socket_path};
 
 /// Run the JS runtime bridge on a background thread.
@@ -36,6 +36,7 @@ fn parse_widget_kind(kind: &str) -> WidgetKind {
         "ProgressBar" | "progressBar" | "progress_bar" | "progress" => WidgetKind::ProgressBar,
         "Spinner" | "spinner" | "loading" => WidgetKind::Spinner,
         "Slider" | "slider" | "range" => WidgetKind::Slider,
+        "Image" | "image" | "img" => WidgetKind::Image,
         "Prose" | "prose" => WidgetKind::Prose,
         "Grid" | "grid" => WidgetKind::Grid,
         "ZStack" | "zstack" | "z_stack" | "stack" => WidgetKind::ZStack,
@@ -63,15 +64,22 @@ fn handle_js_message(message: JsToRustMessage) -> Option<JsCommand> {
             parent_id,
             text,
             style_json,
-        } => Some(JsCommand::CreateWidget {
-            id,
-            kind: parse_widget_kind(&kind),
-            parent_id,
-            text,
-            style: style_json
-                .as_deref()
-                .and_then(style_parser::parse_style_json),
-        }),
+            widget_params_json,
+            data,
+        } => {
+            let parsed_kind = parse_widget_kind(&kind);
+            let params = build_widget_params(&parsed_kind, widget_params_json.as_deref(), data);
+            Some(JsCommand::CreateWidget {
+                id,
+                kind: parsed_kind,
+                parent_id,
+                text,
+                style: style_json
+                    .as_deref()
+                    .and_then(style_parser::parse_style_json),
+                params,
+            })
+        }
         JsToRustMessage::RemoveWidget { id } => Some(JsCommand::RemoveWidget { id }),
         JsToRustMessage::SetWidgetText { id, text } => Some(JsCommand::SetWidgetText { id, text }),
         JsToRustMessage::SetWidgetVisible { id, visible } => {
@@ -109,6 +117,28 @@ fn handle_js_message(message: JsToRustMessage) -> Option<JsCommand> {
             level: LogLevel::Info,
             message: "Bun runtime bridge ready".to_string(),
         }),
+        JsToRustMessage::SetImageData { id, data } => Some(JsCommand::SetImageData { id, data }),
+    }
+}
+
+/// Build widget-specific params from the binary data field and optional JSON metadata
+fn build_widget_params(
+    kind: &WidgetKind,
+    params_json: Option<&str>,
+    data: Option<Vec<u8>>,
+) -> Option<WidgetParams> {
+    match kind {
+        WidgetKind::Image => {
+            let image_data = data?;
+            let object_fit = params_json
+                .and_then(|json| serde_json::from_str::<serde_json::Value>(json).ok())
+                .and_then(|v| v.get("object_fit")?.as_str().map(String::from));
+            Some(WidgetParams::Image {
+                data: image_data,
+                object_fit,
+            })
+        }
+        _ => None,
     }
 }
 
@@ -120,16 +150,15 @@ fn run_socket_server(
 
     let socket_path = get_socket_path();
     println!("[JS] Binding socket to {}", socket_path);
-    
-    let listener = bind_socket(&socket_path)
-        .map_err(|e| format!("Failed to bind socket: {e}"))?;
+
+    let listener = bind_socket(&socket_path).map_err(|e| format!("Failed to bind socket: {e}"))?;
 
     println!("[JS] Waiting for client connection...");
-    
+
     // We just wait for the first client for now
     let (mut stream, _) = listener.accept()?;
     let mut read_stream = stream.try_clone()?;
-    
+
     println!("[JS] Client connected");
 
     let command_sender_clone = command_sender.clone();
@@ -175,7 +204,7 @@ fn run_socket_server(
         level: LogLevel::Info,
         message: "Socket connection closed".to_string(),
     });
-    
+
     // JS runtime disconnected, exit the UI thread cleanly
     let _ = command_sender.send(JsCommand::ExitApp);
 

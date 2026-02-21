@@ -120,6 +120,8 @@ export function createAppJsRenderer(runtime: AppJsRuntime): AppJsRenderer {
     kind: string;
     text: string | null;
     style: AppJsStyle | null;
+    params: Record<string, unknown> | null;
+    data: Uint8Array | null;
   } {
     const kind = normalizeWidgetKind(node.tag);
     const style = createEmptyStyle();
@@ -140,6 +142,8 @@ export function createAppJsRenderer(runtime: AppJsRuntime): AppJsRenderer {
       if (name === "id") continue;
       if (name === "type") continue;
       if (name === "visible") continue;
+      if (name === "data") continue;
+      if (name === "objectFit") continue;
 
       if (name === "text") {
         text = String(value);
@@ -170,10 +174,27 @@ export function createAppJsRenderer(runtime: AppJsRuntime): AppJsRenderer {
       }
     }
 
+    // Extract image-specific props
+    let params: Record<string, unknown> | null = null;
+    let data: Uint8Array | null = null;
+
+    if (kind === "image") {
+      const rawData = node.props.data;
+      if (rawData instanceof Uint8Array) {
+        data = rawData;
+      }
+      const objectFit = node.props.objectFit;
+      if (typeof objectFit === "string") {
+        params = { object_fit: objectFit };
+      }
+    }
+
     return {
       kind,
       text,
       style: hasStyle ? style : null,
+      params,
+      data,
     };
   }
 
@@ -212,6 +233,10 @@ export function createAppJsRenderer(runtime: AppJsRuntime): AppJsRenderer {
     if (isPrimitiveStyleValue(value)) {
       runtime.ui.setStyleProperty(node.widgetId, mapStyleKey(name), value);
     }
+
+    if (name === "data" && value instanceof Uint8Array && runtime.ui.setImageData) {
+      runtime.ui.setImageData(node.widgetId, value);
+    }
   }
 
   function mountNode(node: HostNode, parentWidgetId: string | null): void {
@@ -224,7 +249,7 @@ export function createAppJsRenderer(runtime: AppJsRuntime): AppJsRenderer {
     }
 
     const init = collectInitialWidgetState(node);
-    runtime.ui.createWidget(node.widgetId, init.kind, parentWidgetId, init.text, init.style);
+    runtime.ui.createWidget(node.widgetId, init.kind, parentWidgetId, init.text, init.style, init.params, init.data);
     node.mounted = true;
     widgetNodeById.set(node.widgetId, node);
 

@@ -21,22 +21,6 @@ use ipc::IpcChannels;
 use js_thread::run_js_thread;
 use ui_thread::{prepare_ui, run_ui_blocking};
 
-fn normalize_script_path_for_bun(path: &std::path::Path) -> String {
-    let raw = path.to_string_lossy().to_string();
-
-    #[cfg(target_os = "windows")]
-    {
-        if let Some(stripped) = raw.strip_prefix(r"\\?\UNC\") {
-            return format!(r"\\{}", stripped);
-        }
-        if let Some(stripped) = raw.strip_prefix(r"\\?\") {
-            return stripped.to_string();
-        }
-    }
-
-    raw
-}
-
 fn main() {
     println!("AppJS Starting...");
 

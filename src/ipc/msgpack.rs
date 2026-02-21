@@ -24,6 +24,9 @@ pub enum JsToRustMessage {
         parent_id: Option<String>,
         text: Option<String>,
         style_json: Option<String>,
+        widget_params_json: Option<String>,
+        #[serde(default, with = "serde_bytes")]
+        data: Option<Vec<u8>>,
     },
     RemoveWidget {
         id: String,
@@ -64,6 +67,11 @@ pub enum JsToRustMessage {
         message: String,
     },
     Ready,
+    SetImageData {
+        id: String,
+        #[serde(with = "serde_bytes")]
+        data: Vec<u8>,
+    },
 }
 
 pub fn write_msgpack_frame<W, T>(writer: &mut W, value: &T) -> io::Result<()>

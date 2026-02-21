@@ -25,7 +25,9 @@ export interface AppJsRuntime {
       kind: string,
       parentId: string | null,
       text: string | null,
-      style: AppJsStyle | null
+      style: AppJsStyle | null,
+      params?: Record<string, unknown> | null,
+      data?: Uint8Array | null
     ) => void;
     removeWidget: (id: string) => void;
     setText: (id: string, text: string) => void;
@@ -34,6 +36,7 @@ export interface AppJsRuntime {
     setChecked: (id: string, checked: boolean) => void;
     setStyle: (id: string, style: AppJsStyle) => void;
     setStyleProperty: (id: string, property: string, value: string | number | boolean) => void;
+    setImageData?: (id: string, data: Uint8Array) => void;
   };
   events: {
     on: (type: string, callback: (event: AppJsEvent) => void) => () => void;
@@ -150,6 +153,7 @@ export type AppJsIntrinsicElements = {
   box: AppJsCommonProps;
   zstack: AppJsCommonProps;
   portal: AppJsCommonProps;
+  image: AppJsCommonProps & { data?: Uint8Array | (() => Uint8Array); objectFit?: string };
 };
 
 // Types for JSX namespace

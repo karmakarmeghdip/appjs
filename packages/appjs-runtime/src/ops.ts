@@ -26,7 +26,9 @@ export function createWidget(
     kind: string,
     parentId: string | null,
     text: string | null,
-    style: AppJsStyle | null
+    style: AppJsStyle | null,
+    params?: Record<string, unknown> | null,
+    data?: Uint8Array | null
 ): void {
     bridge.send({
         type: "createWidget",
@@ -35,6 +37,8 @@ export function createWidget(
         parent_id: parentId ?? null,
         text: text ?? null,
         style_json: style ? JSON.stringify(style) : null,
+        widget_params_json: params ? JSON.stringify(params) : null,
+        data: data ?? null,
     });
 }
 
@@ -76,4 +80,8 @@ export function log(level: "debug" | "info" | "warn" | "error", message: string)
 
 export function exit(): void {
     bridge.send({ type: "exitApp" });
+}
+
+export function setImageData(id: string, data: Uint8Array): void {
+    bridge.send({ type: "setImageData", id, data });
 }
