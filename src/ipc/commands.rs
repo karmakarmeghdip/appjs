@@ -257,3 +257,61 @@ impl fmt::Debug for ClientCommandAction {
 }
 
 // ── Helpers for parsing style from JSON-like data ──
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_client_command_serialization() {
+        let cmd = ClientCommand::SetTitle("Hello AppJS".to_string());
+
+        let serialized = serde_json::to_string(&cmd).unwrap();
+        assert!(serialized.contains("SetTitle"));
+        assert!(serialized.contains("Hello AppJS"));
+
+        let deserialized: ClientCommand = serde_json::from_str(&serialized).unwrap();
+        match deserialized {
+            ClientCommand::SetTitle(title) => assert_eq!(title, "Hello AppJS"),
+            _ => panic!("Deserialized to wrong variant"),
+        }
+    }
+
+    #[test]
+    fn test_create_widget_serialization() {
+        let cmd = ClientCommand::CreateWidget {
+            id: "btn_1".to_string(),
+            kind: WidgetKind::Button,
+            parent_id: Some("__root__".to_string()),
+            text: Some("Click Me".to_string()),
+            style: Some(BoxStyle {
+                width: Some(100.0),
+                height: Some(40.0),
+                ..Default::default()
+            }),
+            data: Some(WidgetData::Button { svg_data: None }),
+        };
+
+        let serialized = serde_json::to_string(&cmd).unwrap();
+        assert!(serialized.contains("CreateWidget"));
+        assert!(serialized.contains("Button"));
+        assert!(serialized.contains("btn_1"));
+
+        let deserialized: ClientCommand = serde_json::from_str(&serialized).unwrap();
+        if let ClientCommand::CreateWidget { id, kind, .. } = deserialized {
+            assert_eq!(id, "btn_1");
+            assert!(matches!(kind, WidgetKind::Button));
+        } else {
+            panic!("Deserialized to wrong variant");
+        }
+    }
+
+    #[test]
+    fn test_client_command_action_debug() {
+        let cmd = ClientCommand::ExitApp;
+        let action = ClientCommandAction(cmd);
+        let debug_str = format!("{:?}", action);
+        assert!(debug_str.contains("ClientCommandAction"));
+        assert!(debug_str.contains("ExitApp"));
+    }
+}

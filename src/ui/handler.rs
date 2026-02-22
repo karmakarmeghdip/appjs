@@ -447,7 +447,10 @@ pub fn handle_client_command(
             } else {
                 // If it's not found, it's highly likely a parent was removed recently
                 // and `remove_widget_subtree` already recursively deleted this child.
-                println!("[UI] Widget '{}' not found for RemoveWidget (likely implicitly removed by parent)", id);
+                println!(
+                    "[UI] Widget '{}' not found for RemoveWidget (likely implicitly removed by parent)",
+                    id
+                );
             }
         }
 

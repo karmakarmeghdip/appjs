@@ -23,3 +23,51 @@ pub enum WidgetActionKind {
     ValueChanged(f64),
     HoverChanged(bool),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ui_event_serialization() {
+        let event = UiEvent::WidgetAction {
+            widget_id: "btn_1".to_string(),
+            action: WidgetActionKind::Click,
+        };
+
+        let serialized = serde_json::to_string(&event).unwrap();
+        assert!(serialized.contains("WidgetAction"));
+        assert!(serialized.contains("btn_1"));
+        assert!(serialized.contains("Click"));
+
+        let deserialized: UiEvent = serde_json::from_str(&serialized).unwrap();
+        match deserialized {
+            UiEvent::WidgetAction { widget_id, action } => {
+                assert_eq!(widget_id, "btn_1");
+                assert!(matches!(action, WidgetActionKind::Click));
+            }
+            _ => panic!("Expected WidgetAction"),
+        }
+    }
+
+    #[test]
+    fn test_runtime_error_serialization() {
+        let event = UiEvent::RuntimeError {
+            source: "js".to_string(),
+            message: "Syntax Error".to_string(),
+            fatal: true,
+        };
+
+        let serialized = serde_json::to_string(&event).unwrap();
+        assert!(serialized.contains("RuntimeError"));
+
+        let deserialized: UiEvent = serde_json::from_str(&serialized).unwrap();
+        if let UiEvent::RuntimeError { source, message, fatal } = deserialized {
+            assert_eq!(source, "js");
+            assert_eq!(message, "Syntax Error");
+            assert!(fatal);
+        } else {
+            panic!("Expected RuntimeError");
+        }
+    }
+}

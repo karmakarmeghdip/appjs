@@ -143,3 +143,64 @@ impl<'de> Deserialize<'de> for ColorValue {
             .ok_or_else(|| serde::de::Error::custom(format!("Invalid color string: {}", s)))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_color_parse_hex() {
+        if let Some(ColorValue::Rgba { r, g, b, a }) = ColorValue::parse("#ff0080") {
+            assert_eq!((r, g, b, a), (255, 0, 128, 255));
+        } else {
+            panic!("Failed to parse 6-char hex");
+        }
+
+        if let Some(ColorValue::Rgba { r, g, b, a }) = ColorValue::parse("#ff008080") {
+            assert_eq!((r, g, b, a), (255, 0, 128, 128));
+        } else {
+            panic!("Failed to parse 8-char hex");
+        }
+    }
+
+    #[test]
+    fn test_color_parse_rgb() {
+        if let Some(ColorValue::Rgba { r, g, b, a }) = ColorValue::parse("rgb(10, 20, 30)") {
+            assert_eq!((r, g, b, a), (10, 20, 30, 255));
+        } else {
+            panic!("Failed to parse rgb");
+        }
+
+        if let Some(ColorValue::Rgba { r, g, b, a }) = ColorValue::parse("rgba(10, 20, 30, 0.5)") {
+            assert_eq!((r, g, b, a), (10, 20, 30, 127)); // 0.5 * 255 = 127.5 -> 127
+        } else {
+            panic!("Failed to parse rgba");
+        }
+    }
+
+    #[test]
+    fn test_color_parse_named() {
+        if let Some(ColorValue::Rgba { r, g, b, a }) = ColorValue::parse("red") {
+            assert_eq!((r, g, b, a), (255, 0, 0, 255));
+        } else {
+            panic!("Failed to parse named color 'red'");
+        }
+
+        if let Some(ColorValue::Named(name)) = ColorValue::parse("papayawhip") {
+            assert_eq!(name, "papayawhip");
+        } else {
+            panic!("Failed to parse unknown named color");
+        }
+    }
+
+    #[test]
+    fn test_color_deserialize() {
+        let json = "\"#00ff00\"";
+        let color: ColorValue = serde_json::from_str(json).unwrap();
+        if let ColorValue::Rgba { r, g, b, a } = color {
+            assert_eq!((r, g, b, a), (0, 255, 0, 255));
+        } else {
+            panic!("Deserialization failed");
+        }
+    }
+}

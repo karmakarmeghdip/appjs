@@ -8,10 +8,8 @@ use std::sync::mpsc::{self, RecvTimeoutError};
 use std::thread;
 use std::time::Duration;
 
-use crate::ipc::msgpack::{
-    ClientMessage, ServerMessage, read_msgpack_frame, write_msgpack_frame,
-};
-use crate::ipc::{IpcServerChannels, ClientCommand, UiEvent, WidgetData, WidgetKind};
+use crate::ipc::msgpack::{ClientMessage, ServerMessage, read_msgpack_frame, write_msgpack_frame};
+use crate::ipc::{ClientCommand, IpcServerChannels, UiEvent, WidgetData, WidgetKind};
 use crate::socket::{bind_socket, get_socket_path};
 
 /// Run the JS runtime bridge on a background thread.
@@ -116,7 +114,9 @@ fn handle_client_message(message: ClientMessage) -> Option<ClientCommand> {
             })
         }
         ClientMessage::RemoveWidget { id } => Some(ClientCommand::RemoveWidget { id }),
-        ClientMessage::SetWidgetText { id, text } => Some(ClientCommand::SetWidgetText { id, text }),
+        ClientMessage::SetWidgetText { id, text } => {
+            Some(ClientCommand::SetWidgetText { id, text })
+        }
         ClientMessage::SetWidgetVisible { id, visible } => {
             Some(ClientCommand::SetWidgetVisible { id, visible })
         }

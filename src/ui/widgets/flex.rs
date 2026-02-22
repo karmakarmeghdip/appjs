@@ -78,11 +78,14 @@ pub fn create(
         style_ref.and_then(|s| s.flex),
     ) {
         // Flex/Container can have children, so init child count
-        widget_manager.register_widget(id, WidgetInfo {
+        widget_manager.register_widget(
+            id,
+            WidgetInfo {
                 widget_id,
                 kind,
                 parent_id: parent_id.clone(),
                 child_index,
-            });
+            },
+        );
     }
 }

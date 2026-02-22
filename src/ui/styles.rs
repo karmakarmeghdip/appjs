@@ -205,7 +205,6 @@ pub fn apply_flex_style(flex: &mut masonry::core::WidgetMut<'_, Flex>, style: &B
     }
 }
 
-/// Build default text style properties for when no style is provided
 pub fn default_text_style_props() -> Vec<StyleProperty> {
     vec![
         StyleProperty::FontSize(20.0),
@@ -213,4 +212,101 @@ pub fn default_text_style_props() -> Vec<StyleProperty> {
             GenericFamily::SansSerif,
         ))),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ipc::{BoxStyle, FontStyleValue, PaddingValue};
+    use masonry::core::StyleProperty;
+
+    #[test]
+    fn test_color_value_to_peniko() {
+        let rgba = ColorValue::Rgba {
+            r: 255,
+            g: 128,
+            b: 64,
+            a: 255,
+        };
+        let color = color_value_to_peniko(&rgba);
+        assert_eq!(color, Color::from_rgba8(255, 128, 64, 255));
+
+        let named = ColorValue::Named("invalid_color".to_string());
+        let fallback = color_value_to_peniko(&named);
+        assert_eq!(fallback, Color::WHITE);
+    }
+
+    #[test]
+    fn test_build_text_styles() {
+        let style = BoxStyle {
+            font_size: Some(24.0),
+            font_weight: Some(700.0),
+            font_style: Some(FontStyleValue::Italic),
+            font_family: Some("Arial".to_string()),
+            letter_spacing: Some(1.5),
+            line_height: Some(1.2),
+            word_spacing: Some(2.0),
+            underline: Some(true),
+            strikethrough: Some(true),
+            ..Default::default()
+        };
+
+        let props = build_text_styles(&style);
+
+        // Assert we get exactly 9 properties
+        assert_eq!(props.len(), 9);
+    }
+
+    #[test]
+    fn test_build_text_styles_default_font() {
+        let style = BoxStyle::default();
+        let props = build_text_styles(&style);
+
+        // Should only have the default font stack
+        assert_eq!(props.len(), 1);
+        assert!(matches!(props[0], StyleProperty::FontStack(_)));
+    }
+
+    #[test]
+    fn test_build_box_properties() {
+        let style = BoxStyle {
+            color: Some(ColorValue::Rgba {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 255,
+            }),
+            background: Some(ColorValue::Rgba {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            }),
+            border_color: Some(ColorValue::Rgba {
+                r: 200,
+                g: 200,
+                b: 200,
+                a: 255,
+            }),
+            hover_border_color: Some(ColorValue::Rgba {
+                r: 100,
+                g: 100,
+                b: 100,
+                a: 255,
+            }),
+            border_width: Some(2.0),
+            corner_radius: Some(4.0),
+            padding: Some(PaddingValue::Uniform(10.0)),
+            ..Default::default()
+        };
+
+        let props = build_box_properties(&style);
+        let _ = props;
+    }
+
+    #[test]
+    fn test_default_text_style_props() {
+        let defaults = default_text_style_props();
+        assert_eq!(defaults.len(), 2);
+    }
 }

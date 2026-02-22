@@ -39,49 +39,54 @@ Think of it as: _what if Bun and a native UI toolkit had a baby?_
 
 ### Build & Run
 
+Ensure the application logic uses an up-to-date physical binary. **Always** compile the release/debug binary first before testing TS/JS interactions because running external scripts spawns the physical Rust executable.
+
 ```bash
 # Clone the repo
 git clone https://github.com/user/Vellum UI.git
 cd Vellum UI
 
-# Build
+# Build the physical binary (mandatory before testing JS examples)
 cargo build
 
 # Run an example
-bun run examples/js/test_ui.js
+bun run examples/solid/solid_counter.tsx
 ```
 
 ### Hello World
 
-```javascript
-// hello.js
-import Vellum UI from "@vellum/core";
+```tsx
+// src/app.tsx
+import * as Vellum from "@vellum/core";
+import { createVellumRenderer, createSignal } from "@vellum/solid";
 
-Vellum UI.window.setTitle("Hello World");
+// 1. Configure OS Window
+Vellum.window.setTitle("Hello World");
+Vellum.body.setStyle({ background: "#1e1e2e", padding: 24, gap: 16 });
 
-Vellum UI.body.setStyle({
-    background: "#1e1e2e",
-    padding: 24,
-    gap: 16,
-});
+const renderer = createVellumRenderer(Vellum);
 
-Vellum UI.label("greeting", null, "Hello from Vellum UI!", {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#cdd6f4",
-});
+// 2. Build declarative components
+function App() {
+    const [count, setCount] = createSignal(0);
 
-Vellum UI.button("btn", null, "Click me!");
+    return (
+        <column gap={16}>
+            <label text="Hello from Vellum UI!" fontSize={24} fontWeight="bold" color="#cdd6f4" />
+            
+            <button onClick={() => setCount(c => c + 1)}>
+                <label text={() => `Clicked ${count()} times`} />
+            </button>
+        </column>
+    );
+}
 
-Vellum UI.events.on("widgetAction", (e) => {
-    if (e.widgetId === "btn" && e.action === "click") {
-        Vellum UI.ui.setText("greeting", "You clicked the button!");
-    }
-});
+// 3. Mount to screen
+renderer.render(() => <App />);
 ```
 
 ```bash
-bun run hello.js
+bun run src/app.tsx
 ```
 
 ## Architecture
@@ -91,16 +96,16 @@ all times:
 
 ```
 +---------------------------+          +---------------------------+
-|      Main Thread (UI)     |          |   Background Thread (JS)  |
+|      Main Thread (UI)     |          |   Background Thread (IPC) |
 |                           |          |                           |
-|  winit Event Loop         |          |  Bun Process              |
+|  winit Event Loop         |          |  External Client Process  |
 |  Masonry Widget Tree      |  <---->  |  Application Logic        |
 |  GPU Rendering (Vello)    |          |  State Management         |
 |                           |          |                           |
 +---------------------------+          +---------------------------+
         ^           |                        |           ^
         |           v                        v           |
-   User Input    Render                 JsCommand    UiEvent
+   User Input    Render                 ClientCommand    UiEvent
   (pointer,     (Vello/                (create,     (click,
    keyboard)    wgpu)                  style,       resize,
                                        update)      value)
@@ -131,153 +136,103 @@ The two threads communicate via asynchronous, typed message passing:
 
 | Direction    | Mechanism          | Purpose                                                                            |
 | ------------ | ------------------ | ---------------------------------------------------------------------------------- |
-| **JS -> UI** | `EventLoopProxy`   | Widget creation, styling, updates. Zero-polling, immediately wakes the event loop. |
-| **UI -> JS** | MsgPack over stdio | User interactions (clicks, input, resize) streamed to the Bun process.             |
+| **Client -> UI** | `EventLoopProxy`   | Widget creation, styling, updates. Zero-polling, immediately wakes the event loop. |
+| **UI -> Client** | MsgPack over UDS Socket | User interactions (clicks, input, resize) streamed to the client process.             |
 
-All messages are strongly typed Rust enums (`JsCommand`, `UiEvent`) -- no raw
+All messages are strongly typed Rust enums (`ClientCommand`, `UiEvent`) -- no raw
 strings cross the thread boundary.
 
 ## API Overview
 
-### Window
+Vellum UI prioritizes declarative UI authoring using SolidJS + TSX. While an imperative `@vellum/core` API exists under the hood to bridge IPC, end-users should interact with the `@vellum/solid` bindings.
 
-```javascript
-Vellum UI.window.setTitle("My App");
-Vellum UI.window.resize(1024, 768);
-Vellum UI.window.close();
-```
+### Window & Body Configuration
 
-### Body (Root Container)
+Before mounting your declarative UI tree, you can configure the native OS window properties directly:
 
-Style the root container like you would `<body>` in HTML:
+```typescript
+import * as Vellum from "@vellum/core";
 
-```javascript
-Vellum UI.body.setStyle({
+// Native Window APIs
+Vellum.window.setTitle("My App");
+Vellum.window.resize(1024, 768);
+Vellum.window.close();
+
+// Root Container Styling
+Vellum.body.setStyle({
     background: "#1e1e2e",
     padding: 24,
-    gap: 16,
-    crossAxisAlignment: "fill",
 });
 ```
 
-### Widgets
+### Declarative UI (SolidJS)
 
-All widgets follow the pattern: `Vellum UI.widget(id, parentId, ...args, style?)`.
+Initialize the custom renderer and mount your application:
 
-```javascript
-// Text
-Vellum UI.label("id", parentId, "text", { fontSize: 16, color: "#fff" });
-Vellum UI.prose("id", parentId, "selectable text");
+```tsx
+import { createVellumRenderer, createSignal } from "@vellum/solid";
 
-// Controls
-Vellum UI.button("id", parentId, "Click me");
-Vellum UI.checkbox("id", parentId, false, "Enable feature");
-Vellum UI.slider("id", parentId, 0, 100, 50);
-Vellum UI.textInput("id", parentId, "placeholder...");
+const renderer = createVellumRenderer(Vellum);
 
-// Layout
-Vellum UI.row("id", parentId, { gap: 8 });
-Vellum UI.column("id", parentId, { gap: 8, crossAxisAlignment: "fill" });
-Vellum UI.flex("id", parentId, { direction: "row", gap: 12 });
-Vellum UI.box("id", parentId, { width: 100, height: 100 });
-Vellum UI.zstack("id", parentId);
-Vellum UI.portal("id", parentId); // scrollable container
+function App() {
+    const [name, setName] = createSignal("");
 
-// Feedback
-Vellum UI.progressBar("id", parentId, 0.5);
-Vellum UI.spinner("id", parentId);
-```
-
-### Styling
-
-Every widget accepts a style object with CSS-like properties:
-
-```javascript
-// Text styles
-{
-    fontSize: 16,
-    fontWeight: "bold",       // 100-900 or "normal", "bold"
-    fontStyle: "italic",
-    fontFamily: "monospace",
-    color: "#cdd6f4",
-    letterSpacing: 1.5,
-    lineHeight: 1.4,
-    textAlign: "center",     // "start", "center", "end", "justify"
-    underline: true,
-    strikethrough: true,
+    return (
+        <column gap={16}>
+            <textInput 
+                placeholder="Enter your name..." 
+                onTextChanged={(e) => setName(e.value)} 
+            />
+            
+            <label 
+                text={() => `Hello, ${name() || "World"}!`} 
+                fontSize={24} 
+                color="#cdd6f4" 
+            />
+        </column>
+    );
 }
 
-// Box styles
-{
-    background: "#1e1e2e",
-    borderColor: "#585b70",
-    borderWidth: 2,
-    cornerRadius: 8,
-    padding: 16,             // or [top, right, bottom, left]
-    width: 200,
-    height: 100,
-}
-
-// Flex layout styles
-{
-    direction: "row",        // "row" or "column"
-    gap: 12,
-    flex: 1,                 // flex grow factor
-    crossAxisAlignment: "center",   // "start", "center", "end", "fill", "baseline"
-    mainAxisAlignment: "spaceBetween", // "start", "center", "end", "spaceBetween", "spaceAround", "spaceEvenly"
-    mustFillMainAxis: true,
-}
+renderer.render(() => <App />);
 ```
 
-Update styles at runtime:
+### Styling Variables
 
-```javascript
-Vellum UI.ui.setStyle("myWidget", { color: "#a6e3a1", fontSize: 20 });
-Vellum UI.ui.setStyleProperty("myWidget", "color", "#f38ba8");
+Styles are passed directly as TSX attributes. Every component supports SolidJS reactive accessors (signals) seamlessly updating native padding, colors, sizing, and typography:
+
+```tsx
+<label 
+    text="Dynamic styling"
+    color={() => isActive() ? "#a6e3a1" : "#f38ba8"}
+    fontSize={16}
+    padding={{ top: 10, bottom: 10, left: 20, right: 20 }}
+    background="#1e1e2e"
+    cornerRadius={8}
+/>
 ```
 
-### Events
+## Available Widgets (TSX)
 
-```javascript
-Vellum UI.events.on("widgetAction", (e) => {
-    // e.widgetId  -- which widget
-    // e.action    -- "click", "valueChanged", "textChanged"
-    // e.value     -- associated value (number, string)
-});
+All native Core Widgets are exposed natively as intrinsic JSX elements:
 
-Vellum UI.events.on("windowResized", (e) => {
-    console.log(e.width, e.height);
-});
-
-// Also: mouseClick, keyPress, keyRelease, windowFocusChanged, windowCloseRequested
-```
-
-### Widget Updates
-
-```javascript
-Vellum UI.ui.setText("label1", "New text");
-Vellum UI.ui.setValue("slider1", 75);
-Vellum UI.ui.setChecked("checkbox1", true);
-Vellum UI.ui.setVisible("widget1", false);
-Vellum UI.ui.removeWidget("widget1");
-```
-
-## Available Widgets
-
-| Widget                    | Description               | Key Properties                              |
-| ------------------------- | ------------------------- | ------------------------------------------- |
-| `label`                   | Static text display       | `fontSize`, `color`, `fontWeight`           |
-| `button`                  | Clickable button          | Emits `click` action                        |
-| `checkbox`                | Toggle with label         | `checked`, emits `valueChanged`             |
-| `textInput`               | Single-line text field    | `placeholder`                               |
-| `slider`                  | Range input               | `min`, `max`, `value`, emits `valueChanged` |
-| `progressBar`             | Progress indicator        | `progress` (0.0 - 1.0)                      |
-| `spinner`                 | Loading indicator         | Animated                                    |
-| `prose`                   | Selectable read-only text | Same text styles as label                   |
-| `flex` / `row` / `column` | Flexbox layout            | `direction`, `gap`, `crossAxisAlignment`    |
-| `box` (SizedBox)          | Fixed-size container      | `width`, `height`                           |
-| `zstack`                  | Overlay/stack container   | Children overlap                            |
-| `portal`                  | Scrollable container      | Wraps content                               |
+| Element | Description | Key Props |
+|---------|-------------|-----------|
+| `<label>` | Static text display | `text`, `fontSize`, `color`, `fontWeight` |
+| `<button>` | Clickable button | `onClick` |
+| `<checkbox>` | Toggle checkbox | `checked`, `onValueChanged` |
+| `<textInput>` | Single-line text input | `placeholder`, `onTextChanged` |
+| `<slider>` | Range slider | `min`, `max`, `value`, `onValueChanged` |
+| `<progressBar>` | Progress indicator | `progress` (0.0 - 1.0) |
+| `<spinner>` | Loading indicator | |
+| `<prose>` | Selectable read-only text | `text`, CSS text styles |
+| `<svg>` | Vector icons/graphics | `svg_data` (raw SVG string) |
+| `<image>` | Bitmap image display | `data` (Uint8Array), `objectFit` |
+| `<column>` | Vertical flex layout | `gap`, `crossAxisAlignment`, `mainAxisAlignment` |
+| `<row>` | Horizontal flex layout | `gap`, `crossAxisAlignment`, `mainAxisAlignment` |
+| `<flex>` | Base flexbox layout | `direction`, `gap`, `flex` |
+| `<box>` | Fixed-size container (SizedBox) | `width`, `height` |
+| `<zstack>` | Z-Index overlapping stack | |
+| `<portal>` | Scrollable view port | |
 
 ## Examples
 
