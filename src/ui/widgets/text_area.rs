@@ -40,14 +40,11 @@ pub fn create(
         new_widget,
         style_ref.and_then(|s| s.flex),
     ) {
-        widget_manager.widgets.insert(
-            id,
-            WidgetInfo {
+        widget_manager.register_widget(id, WidgetInfo {
                 widget_id,
                 kind: WidgetKind::TextArea,
                 parent_id: parent_id.clone(),
                 child_index,
-            },
-        );
+            });
     }
 }

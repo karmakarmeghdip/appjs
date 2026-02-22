@@ -3,8 +3,8 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use masonry::core::{ErasedAction, WidgetId};
 use masonry_winit::app::{EventLoopProxy, MasonryUserEvent, WindowId};
 
-use super::commands::JsCommand;
-use super::{JsCommandAction, UiEvent};
+use super::commands::ClientCommand;
+use super::{ClientCommandAction, UiEvent};
 
 /// Sender for UI events (UI thread holds this)
 pub type UiEventSender = Sender<UiEvent>;
@@ -12,10 +12,10 @@ pub type UiEventSender = Sender<UiEvent>;
 /// Receiver for UI events (JS thread holds this)
 pub type UiEventReceiver = Receiver<UiEvent>;
 
-/// Sender that wraps EventLoopProxy to send JsCommands directly to the UI event loop.
-/// This is held by the JS thread and wakes the event loop on each send (zero polling).
+/// Sender that wraps EventLoopProxy to send ClientCommands directly to the UI event loop.
+/// This is held by the client thread and wakes the event loop on each send (zero polling).
 #[derive(Clone)]
-pub struct JsCommandSender {
+pub struct ClientCommandSender {
     proxy: EventLoopProxy,
     window_id: WindowId,
     /// A sentinel WidgetId used for MasonryUserEvent::Action.
@@ -24,7 +24,7 @@ pub struct JsCommandSender {
     sentinel_widget_id: WidgetId,
 }
 
-impl JsCommandSender {
+impl ClientCommandSender {
     pub fn new(proxy: EventLoopProxy, window_id: WindowId) -> Self {
         Self {
             proxy,
@@ -33,10 +33,10 @@ impl JsCommandSender {
         }
     }
 
-    /// Send a JsCommand to the UI thread by wrapping it in MasonryUserEvent::Action.
+    /// Send a ClientCommand to the UI thread by wrapping it in MasonryUserEvent::Action.
     /// This immediately wakes the winit event loop — no polling needed.
-    pub fn send(&self, cmd: JsCommand) -> Result<(), String> {
-        let action: ErasedAction = Box::new(JsCommandAction(cmd));
+    pub fn send(&self, cmd: ClientCommand) -> Result<(), String> {
+        let action: ErasedAction = Box::new(ClientCommandAction(cmd));
         self.proxy
             .send_event(MasonryUserEvent::Action(
                 self.window_id,
@@ -66,7 +66,7 @@ pub struct IpcServerChannels {
     /// Receive UI events from UI thread
     pub event_receiver: UiEventReceiver,
     /// Send commands to UI thread (via EventLoopProxy, zero polling)
-    pub command_sender: JsCommandSender,
+    pub command_sender: ClientCommandSender,
 }
 
 impl IpcChannels {
@@ -81,7 +81,7 @@ impl IpcChannels {
             },
             ipc_server: IpcServerChannels {
                 event_receiver: ui_event_rx,
-                command_sender: JsCommandSender::new(proxy, window_id),
+                command_sender: ClientCommandSender::new(proxy, window_id),
             },
         }
     }

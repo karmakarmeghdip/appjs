@@ -43,10 +43,10 @@ mod tests {
 
     #[test]
     fn test_js_command_action_debug() {
-        let cmd = JsCommand::SetTitle("Test".to_string());
-        let action = JsCommandAction(cmd);
+        let cmd = ClientCommand::SetTitle("Test".to_string());
+        let action = ClientCommandAction(cmd);
         let debug_str = format!("{:?}", action);
-        assert!(debug_str.contains("JsCommandAction"));
+        assert!(debug_str.contains("ClientCommandAction"));
         assert!(debug_str.contains("SetTitle"));
     }
 

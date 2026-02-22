@@ -78,7 +78,9 @@ pub fn create(
 
     // Must fill main axis
     if style_ref.and_then(|s| s.flex).is_some() {
-        let fill = style_ref.and_then(|s| s.must_fill_main_axis).unwrap_or(true);
+        let fill = style_ref
+            .and_then(|s| s.must_fill_main_axis)
+            .unwrap_or(true);
         new_flex = new_flex.must_fill_main_axis(fill);
     } else if let Some(fill) = style_ref.and_then(|s| s.must_fill_main_axis) {
         new_flex = new_flex.must_fill_main_axis(fill);
@@ -115,15 +117,11 @@ pub fn create(
         new_widget,
         style_ref.and_then(|s| s.flex),
     ) {
-        widget_manager.child_counts.insert(id.clone(), 0);
-        widget_manager.widgets.insert(
-            id,
-            WidgetInfo {
+        widget_manager.register_widget(id, WidgetInfo {
                 widget_id,
                 kind: WidgetKind::Button,
                 parent_id: parent_id.clone(),
                 child_index,
-            },
-        );
+            });
     }
 }

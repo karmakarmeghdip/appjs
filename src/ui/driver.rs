@@ -2,15 +2,15 @@ use masonry::core::{ErasedAction, WidgetId};
 use masonry::widgets::{ButtonPress, Checkbox, CheckboxToggled};
 use masonry_winit::app::{AppDriver, DriverCtx, WindowId};
 
-use crate::ipc::{JsCommandAction, UiEvent, UiEventSender, WidgetActionKind};
+use crate::ipc::{ClientCommandAction, UiEvent, UiEventSender, WidgetActionKind};
 
-use super::handler::handle_js_command;
+use super::handler::handle_client_command;
 use super::widget_manager::{WidgetInfo, WidgetManager};
 use super::widgets::hoverable::HoverAction;
 
 /// Application driver that bridges JS runtime commands with the masonry UI.
 ///
-/// When on_action is called with a JsCommandAction (sent via EventLoopProxy from the JS thread),
+/// When on_action is called with a ClientCommandAction (sent via EventLoopProxy from the JS thread),
 /// it mutates the widget tree to create, update, or remove widgets.
 pub struct VellumDriver {
     /// Sender for UI events back to the JS thread
@@ -28,7 +28,7 @@ impl VellumDriver {
     }
 
     /// Look up JS widget ID by masonry WidgetId
-    fn find_js_id(&self, widget_id: WidgetId) -> Option<String> {
+    fn find_client_id(&self, widget_id: WidgetId) -> Option<String> {
         self.widget_manager
             .widgets
             .iter()
@@ -55,11 +55,11 @@ impl AppDriver for VellumDriver {
         widget_id: WidgetId,
         action: ErasedAction,
     ) {
-        // Check if this action is a JsCommandAction sent via EventLoopProxy
-        if let Some(js_action) = action.downcast_ref::<JsCommandAction>() {
-            let cmd = js_action.0.clone();
+        // Check if this action is a ClientCommandAction sent via EventLoopProxy
+        if let Some(client_action) = action.downcast_ref::<ClientCommandAction>() {
+            let cmd = client_action.0.clone();
             let render_root = ctx.render_root(window_id);
-            handle_js_command(
+            handle_client_command(
                 cmd,
                 window_id,
                 render_root,
@@ -79,7 +79,7 @@ impl AppDriver for VellumDriver {
                 let mut cb = w.downcast::<Checkbox>();
                 Checkbox::set_checked(&mut cb, toggled.0);
             });
-            if let Some(id) = self.find_js_id(widget_id) {
+            if let Some(id) = self.find_client_id(widget_id) {
                 if let Err(send_err) = self.event_sender.send(UiEvent::WidgetAction {
                     widget_id: id,
                     action: WidgetActionKind::ValueChanged(if toggled.0 { 1.0 } else { 0.0 }),
@@ -91,7 +91,7 @@ impl AppDriver for VellumDriver {
         }
 
         if let Some(hover_action) = action.downcast_ref::<HoverAction>() {
-            if let Some(id) = self.find_js_id(hover_action.child_widget_id) {
+            if let Some(id) = self.find_client_id(hover_action.child_widget_id) {
                 if let Err(send_err) = self.event_sender.send(UiEvent::WidgetAction {
                     widget_id: id,
                     action: WidgetActionKind::HoverChanged(hover_action.hovered),
@@ -104,12 +104,14 @@ impl AppDriver for VellumDriver {
 
         // Handle Slider value change (Action = f64)
         if let Some(&value) = action.downcast_ref::<f64>() {
-            if let Some(id) = self.find_js_id(widget_id) {
+            if let Some(id) = self.find_client_id(widget_id) {
                 if let Err(send_err) = self.event_sender.send(UiEvent::WidgetAction {
                     widget_id: id,
                     action: WidgetActionKind::ValueChanged(value),
                 }) {
-                    eprintln!("[UI] Failed to forward slider value change to JS thread: {send_err}");
+                    eprintln!(
+                        "[UI] Failed to forward slider value change to JS thread: {send_err}"
+                    );
                 }
             }
             return;
@@ -117,7 +119,7 @@ impl AppDriver for VellumDriver {
 
         // Handle button presses exactly as Masonry examples do.
         if action.is::<ButtonPress>() {
-            if let Some(id) = self.find_js_id(widget_id) {
+            if let Some(id) = self.find_client_id(widget_id) {
                 if let Err(send_err) = self.event_sender.send(UiEvent::WidgetAction {
                     widget_id: id,
                     action: WidgetActionKind::Click,

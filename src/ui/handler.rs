@@ -6,7 +6,7 @@ use masonry::widgets::{
 use masonry_winit::app::WindowId;
 use winit::dpi::PhysicalSize;
 
-use crate::ipc::{BoxStyle, JsCommand, UiEventSender, WidgetKind};
+use crate::ipc::{BoxStyle, ClientCommand, UiEventSender, WidgetKind};
 
 use super::creation::create_and_add_widget;
 use super::styles::{apply_box_props_to_widget, apply_flex_style, build_text_styles};
@@ -23,21 +23,21 @@ fn report_runtime_error(event_sender: &UiEventSender, source: &str, message: Str
     }
 }
 
-/// Process a single JsCommand by mutating the widget tree.
-pub fn handle_js_command(
-    cmd: JsCommand,
+/// Process a single ClientCommand by mutating the widget tree.
+pub fn handle_client_command(
+    cmd: ClientCommand,
     _window_id: WindowId,
     render_root: &mut RenderRoot,
     widget_manager: &mut WidgetManager,
     _event_sender: &UiEventSender,
 ) {
     match cmd {
-        JsCommand::SetTitle(title) => {
+        ClientCommand::SetTitle(title) => {
             println!("[UI] Setting window title: {}", title);
             render_root.emit_signal(RenderRootSignal::SetTitle(title));
         }
 
-        JsCommand::CreateWidget {
+        ClientCommand::CreateWidget {
             id,
             kind,
             parent_id,
@@ -57,7 +57,7 @@ pub fn handle_js_command(
             );
         }
 
-        JsCommand::SetWidgetText { id, text } => {
+        ClientCommand::SetWidgetText { id, text } => {
             if let Some(info) = widget_manager.widgets.get(&id) {
                 let widget_id = info.widget_id;
                 match &info.kind {
@@ -120,7 +120,7 @@ pub fn handle_js_command(
             }
         }
 
-        JsCommand::SetWidgetValue { id, value } => {
+        ClientCommand::SetWidgetValue { id, value } => {
             if let Some(info) = widget_manager.widgets.get(&id) {
                 let widget_id = info.widget_id;
                 match &info.kind {
@@ -159,7 +159,7 @@ pub fn handle_js_command(
             }
         }
 
-        JsCommand::SetWidgetChecked { id, checked } => {
+        ClientCommand::SetWidgetChecked { id, checked } => {
             if let Some(info) = widget_manager.widgets.get(&id) {
                 let widget_id = info.widget_id;
                 if matches!(info.kind, WidgetKind::Checkbox) {
@@ -189,7 +189,7 @@ pub fn handle_js_command(
             }
         }
 
-        JsCommand::SetWidgetStyle { id, style } => {
+        ClientCommand::SetWidgetStyle { id, style } => {
             // Special handling for root flex (the "body" element)
             if id == "__root__" {
                 render_root.edit_widget_with_tag(ROOT_FLEX_TAG, |mut widget| {
@@ -249,6 +249,17 @@ pub fn handle_js_command(
                             apply_box_props_to_widget(&mut slider, &style);
                         });
                     }
+                    WidgetKind::SizedBox => {
+                        render_root.edit_widget(widget_id, |mut widget| {
+                            let mut sbox = widget.downcast::<SizedBox>();
+                            apply_box_props_to_widget(&mut sbox, &style);
+                        });
+                    }
+                    WidgetKind::Image => {
+                        // Images in masonry do not support arbitrary box styles natively like HTML.
+                        // Width/height are handled by wrapping them in SizedBox (done in image.rs).
+                        // We silently ignore box styles on the inner image here to prevent log spam.
+                    }
                     _ => {
                         report_runtime_error(
                             _event_sender,
@@ -272,7 +283,7 @@ pub fn handle_js_command(
             }
         }
 
-        JsCommand::SetStyleProperty {
+        ClientCommand::SetStyleProperty {
             id,
             property,
             value,
@@ -282,20 +293,31 @@ pub fn handle_js_command(
                 id, property, value
             );
             // Build a partial style and delegate
-            let mut style = BoxStyle::default();
-            let quoted_value = if value.starts_with('"') {
-                value.clone()
+            let json_str = if value.starts_with('"')
+                || value.parse::<f64>().is_ok()
+                || value == "true"
+                || value == "false"
+                || value.starts_with('{')
+                || value.starts_with('[')
+            {
+                format!("{{\"{}\": {}}}", property, value)
             } else {
-                format!("\"{}\"", value)
+                format!("{{\"{}\": \"{}\"}}", property, value)
             };
-            crate::ui::style_parser::apply_style_property(
-                &mut style,
-                &property,
-                &quoted_value,
-            );
+
+            let style = match serde_json::from_str::<BoxStyle>(&json_str) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!(
+                        "[UI] Failed to parse SetStyleProperty json '{}': {}",
+                        json_str, e
+                    );
+                    BoxStyle::default()
+                }
+            };
             // Re-dispatch as SetWidgetStyle
-            handle_js_command(
-                JsCommand::SetWidgetStyle { id, style },
+            handle_client_command(
+                ClientCommand::SetWidgetStyle { id, style },
                 _window_id,
                 render_root,
                 widget_manager,
@@ -303,7 +325,7 @@ pub fn handle_js_command(
             );
         }
 
-        JsCommand::SetWidgetVisible { id, visible } => {
+        ClientCommand::SetWidgetVisible { id, visible } => {
             report_runtime_error(
                 _event_sender,
                 "ui-handler",
@@ -314,7 +336,7 @@ pub fn handle_js_command(
             );
         }
 
-        JsCommand::RemoveWidget { id } => {
+        ClientCommand::RemoveWidget { id } => {
             if let Some(info) = widget_manager.widgets.get(&id).cloned() {
                 let parent_key = info.parent_id.as_deref().unwrap_or("__root__");
                 let child_index = info.child_index;
@@ -423,33 +445,29 @@ pub fn handle_js_command(
 
                 println!("[UI] Removed widget '{}'", id);
             } else {
-                eprintln!("[UI] Widget '{}' not found for RemoveWidget", id);
-                report_runtime_error(
-                    _event_sender,
-                    "ui-handler",
-                    format!("Widget '{id}' not found for RemoveWidget"),
-                    false,
-                );
+                // If it's not found, it's highly likely a parent was removed recently
+                // and `remove_widget_subtree` already recursively deleted this child.
+                println!("[UI] Widget '{}' not found for RemoveWidget (likely implicitly removed by parent)", id);
             }
         }
 
-        JsCommand::ResizeWindow { width, height } => {
+        ClientCommand::ResizeWindow { width, height } => {
             println!("[UI] Resizing window to {}x{}", width, height);
             let size = PhysicalSize::new(width, height);
             render_root.emit_signal(RenderRootSignal::SetSize(size));
         }
 
-        JsCommand::CloseWindow => {
+        ClientCommand::CloseWindow => {
             println!("[UI] Closing window");
             render_root.emit_signal(RenderRootSignal::Exit);
         }
 
-        JsCommand::ExitApp => {
+        ClientCommand::ExitApp => {
             println!("[UI] Exiting application");
             render_root.emit_signal(RenderRootSignal::Exit);
         }
 
-        JsCommand::SetImageData { id, data } => {
+        ClientCommand::SetImageData { id, data } => {
             if let Some(info) = widget_manager.widgets.get(&id) {
                 if matches!(info.kind, WidgetKind::Image) {
                     let widget_id = info.widget_id;

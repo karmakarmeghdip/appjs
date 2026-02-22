@@ -9,12 +9,10 @@ use std::thread;
 use std::time::Duration;
 
 use crate::ipc::msgpack::{
-    JsToRustMessage, RustToJsMessage, read_msgpack_frame, write_msgpack_frame,
+    ClientMessage, ServerMessage, read_msgpack_frame, write_msgpack_frame,
 };
-use crate::ipc::{JsCommand, IpcServerChannels, UiEvent, WidgetData, WidgetKind};
+use crate::ipc::{IpcServerChannels, ClientCommand, UiEvent, WidgetData, WidgetKind};
 use crate::socket::{bind_socket, get_socket_path};
-
-use crate::ui::style_parser::{self, extract_json_value, parse_json_bool, parse_json_f64, unquote};
 
 /// Run the JS runtime bridge on a background thread.
 ///
@@ -22,7 +20,7 @@ use crate::ui::style_parser::{self, extract_json_value, parse_json_bool, parse_j
 /// length-prefixed MsgPack frames.
 pub fn run_ipc_server(channels: IpcServerChannels) {
     if let Err(e) = run_socket_server(channels) {
-        eprintln!("[JS] Runtime socket error: {e}");
+        eprintln!("[IPC] Runtime socket error: {e}");
     }
 }
 
@@ -41,7 +39,7 @@ fn write_runtime_error(
 ) -> std::io::Result<()> {
     write_msgpack_frame(
         stream,
-        &RustToJsMessage::RuntimeError {
+        &ServerMessage::RuntimeError {
             source: source.into(),
             message: message.into(),
             fatal,
@@ -49,18 +47,18 @@ fn write_runtime_error(
     )
 }
 
-fn runtime_error_from_ui_event(event: UiEvent) -> RustToJsMessage {
+fn runtime_error_from_ui_event(event: UiEvent) -> ServerMessage {
     match event {
         UiEvent::RuntimeError {
             source,
             message,
             fatal,
-        } => RustToJsMessage::RuntimeError {
+        } => ServerMessage::RuntimeError {
             source,
             message,
             fatal,
         },
-        other => RustToJsMessage::UiEvent { event: other },
+        other => ServerMessage::UiEvent { event: other },
     }
 }
 
@@ -87,10 +85,10 @@ fn parse_widget_kind(kind: &str) -> WidgetKind {
     }
 }
 
-fn handle_js_message(message: JsToRustMessage) -> Option<JsCommand> {
+fn handle_client_message(message: ClientMessage) -> Option<ClientCommand> {
     match message {
-        JsToRustMessage::SetTitle { title } => Some(JsCommand::SetTitle(title)),
-        JsToRustMessage::CreateWidget {
+        ClientMessage::SetTitle { title } => Some(ClientCommand::SetTitle(title)),
+        ClientMessage::CreateWidget {
             id,
             kind,
             parent_id,
@@ -106,47 +104,47 @@ fn handle_js_message(message: JsToRustMessage) -> Option<JsCommand> {
                 widget_params_json.as_deref(),
                 data,
             );
-            Some(JsCommand::CreateWidget {
+            Some(ClientCommand::CreateWidget {
                 id,
                 kind: parsed_kind,
                 parent_id,
                 text,
                 style: style_json
                     .as_deref()
-                    .and_then(style_parser::parse_style_json),
+                    .and_then(|s| serde_json::from_str(s).ok()),
                 data: widget_data,
             })
         }
-        JsToRustMessage::RemoveWidget { id } => Some(JsCommand::RemoveWidget { id }),
-        JsToRustMessage::SetWidgetText { id, text } => Some(JsCommand::SetWidgetText { id, text }),
-        JsToRustMessage::SetWidgetVisible { id, visible } => {
-            Some(JsCommand::SetWidgetVisible { id, visible })
+        ClientMessage::RemoveWidget { id } => Some(ClientCommand::RemoveWidget { id }),
+        ClientMessage::SetWidgetText { id, text } => Some(ClientCommand::SetWidgetText { id, text }),
+        ClientMessage::SetWidgetVisible { id, visible } => {
+            Some(ClientCommand::SetWidgetVisible { id, visible })
         }
-        JsToRustMessage::SetWidgetStyle { id, style_json } => Some(JsCommand::SetWidgetStyle {
+        ClientMessage::SetWidgetStyle { id, style_json } => Some(ClientCommand::SetWidgetStyle {
             id,
-            style: style_parser::parse_style_json(&style_json).unwrap_or_default(),
+            style: serde_json::from_str(&style_json).unwrap_or_default(),
         }),
-        JsToRustMessage::SetStyleProperty {
+        ClientMessage::SetStyleProperty {
             id,
             property,
             value,
-        } => Some(JsCommand::SetStyleProperty {
+        } => Some(ClientCommand::SetStyleProperty {
             id,
             property,
             value,
         }),
-        JsToRustMessage::SetWidgetValue { id, value } => {
-            Some(JsCommand::SetWidgetValue { id, value })
+        ClientMessage::SetWidgetValue { id, value } => {
+            Some(ClientCommand::SetWidgetValue { id, value })
         }
-        JsToRustMessage::SetWidgetChecked { id, checked } => {
-            Some(JsCommand::SetWidgetChecked { id, checked })
+        ClientMessage::SetWidgetChecked { id, checked } => {
+            Some(ClientCommand::SetWidgetChecked { id, checked })
         }
-        JsToRustMessage::ResizeWindow { width, height } => {
-            Some(JsCommand::ResizeWindow { width, height })
+        ClientMessage::ResizeWindow { width, height } => {
+            Some(ClientCommand::ResizeWindow { width, height })
         }
-        JsToRustMessage::CloseWindow => Some(JsCommand::CloseWindow),
-        JsToRustMessage::ExitApp => Some(JsCommand::ExitApp),
-        JsToRustMessage::SetImageData { id, data } => Some(JsCommand::SetImageData { id, data }),
+        ClientMessage::CloseWindow => Some(ClientCommand::CloseWindow),
+        ClientMessage::ExitApp => Some(ClientCommand::ExitApp),
+        ClientMessage::SetImageData { id, data } => Some(ClientCommand::SetImageData { id, data }),
     }
 }
 
@@ -161,55 +159,82 @@ fn build_widget_data(
     params_json: Option<&str>,
     data: Option<Vec<u8>>,
 ) -> Option<WidgetData> {
-    let params_value = params_json.and_then(|json| serde_json::from_str::<serde_json::Value>(json).ok());
+    let params_value =
+        params_json.and_then(|json| serde_json::from_str::<serde_json::Value>(json).ok());
+    let style_value =
+        style_json.and_then(|json| serde_json::from_str::<serde_json::Value>(json).ok());
 
-    let params_string = |key: &str| -> Option<String> {
+    let get_string = |key: &str| -> Option<String> {
         params_value
             .as_ref()
             .and_then(|v| v.get(key))
             .and_then(|v| v.as_str())
+            .or_else(|| {
+                style_value
+                    .as_ref()
+                    .and_then(|v| v.get(key))
+                    .and_then(|v| v.as_str())
+            })
             .map(String::from)
     };
-    let params_bool = |key: &str| -> Option<bool> {
+    let get_bool = |key: &str| -> Option<bool> {
         params_value
             .as_ref()
             .and_then(|v| v.get(key))
             .and_then(|v| v.as_bool())
+            .or_else(|| {
+                style_value
+                    .as_ref()
+                    .and_then(|v| v.get(key))
+                    .and_then(|v| v.as_bool())
+            })
     };
-    let params_f64 = |key: &str| -> Option<f64> {
+    let get_f64 = |key: &str| -> Option<f64> {
         params_value
             .as_ref()
             .and_then(|v| v.get(key))
             .and_then(|v| v.as_f64())
+            .or_else(|| {
+                style_value
+                    .as_ref()
+                    .and_then(|v| v.get(key))
+                    .and_then(|v| v.as_f64())
+            })
+            // Sometimes it comes in as an integer
+            .or_else(|| {
+                params_value
+                    .as_ref()
+                    .and_then(|v| v.get(key))
+                    .and_then(|v| v.as_i64())
+                    .map(|i| i as f64)
+            })
+            .or_else(|| {
+                style_value
+                    .as_ref()
+                    .and_then(|v| v.get(key))
+                    .and_then(|v| v.as_i64())
+                    .map(|i| i as f64)
+            })
     };
 
     match kind {
         WidgetKind::Label => Some(WidgetData::Label),
 
         WidgetKind::Button => {
-            let svg_data = params_string("svgData")
-                .or_else(|| params_string("svg_data"))
-                .or_else(|| style_json
-                .and_then(|s| extract_json_value(s, "svgData"))
-                .or_else(|| style_json.and_then(|s| extract_json_value(s, "svg_data")))
-                .map(|v| unquote(&v)));
+            let svg_data = get_string("svgData").or_else(|| get_string("svg_data"));
             Some(WidgetData::Button { svg_data })
         }
 
         WidgetKind::Svg => {
-            let svg_data = params_string("svgData")
-                .or_else(|| params_string("svg_data"))
-                .or_else(|| style_json
-                .and_then(|s| extract_json_value(s, "svgData"))
-                .or_else(|| style_json.and_then(|s| extract_json_value(s, "svg_data")))
-                .or_else(|| style_json.and_then(|s| extract_json_value(s, "svg")))
-                .map(|v| unquote(&v)));
+            let svg_data = get_string("svgData")
+                .or_else(|| get_string("svg_data"))
+                .or_else(|| get_string("svg"));
             Some(WidgetData::Svg { svg_data })
         }
 
         WidgetKind::Image => {
             let image_data = data?;
-            let object_fit = params_string("object_fit");
+            let object_fit = get_string("object_fit").or_else(|| get_string("objectFit"));
             Some(WidgetData::Image {
                 data: image_data,
                 object_fit,
@@ -221,22 +246,12 @@ fn build_widget_data(
         WidgetKind::SizedBox => Some(WidgetData::SizedBox),
 
         WidgetKind::Checkbox => {
-            let checked = params_bool("checked")
-                .or_else(|| {
-                    style_json
-                        .and_then(|s| extract_json_value(s, "checked"))
-                        .and_then(|v| parse_json_bool(&v))
-                })
-                .unwrap_or(false);
+            let checked = get_bool("checked").unwrap_or(false);
             Some(WidgetData::Checkbox { checked })
         }
 
         WidgetKind::TextInput => {
-            let placeholder = params_string("placeholder").or_else(|| {
-                style_json
-                    .and_then(|s| extract_json_value(s, "placeholder"))
-                    .map(|v| unquote(&v))
-            });
+            let placeholder = get_string("placeholder");
             Some(WidgetData::TextInput { placeholder })
         }
 
@@ -244,66 +259,25 @@ fn build_widget_data(
         WidgetKind::Prose => Some(WidgetData::Prose),
 
         WidgetKind::ProgressBar => {
-            let progress = params_f64("progress")
-                .or_else(|| params_f64("value"))
-                .or_else(|| {
-                    style_json
-                        .and_then(|s| extract_json_value(s, "progress"))
-                        .and_then(|v| parse_json_f64(&v))
-                })
-                .or_else(|| {
-                    style_json
-                        .and_then(|s| extract_json_value(s, "value"))
-                        .and_then(|v| parse_json_f64(&v))
-                });
+            let progress = get_f64("progress").or_else(|| get_f64("value"));
             Some(WidgetData::ProgressBar { progress })
         }
 
         WidgetKind::Spinner => Some(WidgetData::Spinner),
 
         WidgetKind::Slider => {
-            let min = params_f64("minValue")
-                .or_else(|| params_f64("min_value"))
-                .or_else(|| params_f64("min"))
-                .or_else(|| {
-                    style_json
-                        .and_then(|s| {
-                            extract_json_value(s, "minValue")
-                                .or_else(|| extract_json_value(s, "min_value"))
-                                .or_else(|| extract_json_value(s, "min"))
-                        })
-                        .and_then(|v| parse_json_f64(&v))
-                })
+            let min = get_f64("minValue")
+                .or_else(|| get_f64("min_value"))
+                .or_else(|| get_f64("min"))
                 .unwrap_or(0.0);
-            let max = params_f64("maxValue")
-                .or_else(|| params_f64("max_value"))
-                .or_else(|| params_f64("max"))
-                .or_else(|| {
-                    style_json
-                        .and_then(|s| {
-                            extract_json_value(s, "maxValue")
-                                .or_else(|| extract_json_value(s, "max_value"))
-                                .or_else(|| extract_json_value(s, "max"))
-                        })
-                        .and_then(|v| parse_json_f64(&v))
-                })
+            let max = get_f64("maxValue")
+                .or_else(|| get_f64("max_value"))
+                .or_else(|| get_f64("max"))
                 .unwrap_or(1.0);
-            let value = params_f64("value")
-                .or_else(|| params_f64("progress"))
-                .or_else(|| {
-                    style_json
-                        .and_then(|s| {
-                            extract_json_value(s, "progress")
-                                .or_else(|| extract_json_value(s, "value"))
-                        })
-                        .and_then(|v| parse_json_f64(&v))
-                })
+            let value = get_f64("value")
+                .or_else(|| get_f64("progress"))
                 .unwrap_or(0.5);
-            let step = params_f64("step").or_else(|| {
-                style_json
-                    .and_then(|s| extract_json_value(s, "step"))
-                    .and_then(|v| parse_json_f64(&v))
-            });
+            let step = get_f64("step");
             Some(WidgetData::Slider {
                 min,
                 max,
@@ -327,17 +301,17 @@ fn run_socket_server(
     let event_receiver = channels.event_receiver;
 
     let socket_path = get_socket_path();
-    println!("[JS] Binding socket to {}", socket_path);
+    println!("[IPC] Binding socket to {}", socket_path);
 
     let listener = bind_socket(&socket_path).map_err(|e| format!("Failed to bind socket: {e}"))?;
 
-    println!("[JS] Waiting for client connection...");
+    println!("[IPC] Waiting for client connection...");
 
     // We just wait for the first client for now
     let (mut stream, _) = listener.accept()?;
     let mut read_stream = stream.try_clone()?;
 
-    println!("[JS] Client connected");
+    println!("[IPC] Client connected");
 
     let command_sender_clone = command_sender.clone();
     let (error_tx, error_rx) = mpsc::channel::<RuntimeErrorReport>();
@@ -345,9 +319,9 @@ fn run_socket_server(
         .name("js-bridge-read".to_string())
         .spawn(move || {
             loop {
-                match read_msgpack_frame::<_, JsToRustMessage>(&mut read_stream) {
+                match read_msgpack_frame::<_, ClientMessage>(&mut read_stream) {
                     Ok(message) => {
-                        if let Some(cmd) = handle_js_message(message) {
+                        if let Some(cmd) = handle_client_message(message) {
                             if let Err(send_err) = command_sender_clone.send(cmd) {
                                 let _ = error_tx.send(RuntimeErrorReport {
                                     source: "ui-thread".to_string(),
@@ -383,7 +357,7 @@ fn run_socket_server(
                         report.message,
                         report.fatal,
                     ) {
-                        eprintln!("[JS] Failed to send runtimeError frame to JS: {write_err}");
+                        eprintln!("[IPC] Failed to send runtimeError frame to JS: {write_err}");
                         should_stop = true;
                         break;
                     }
@@ -405,7 +379,7 @@ fn run_socket_server(
             Ok(event) => {
                 let frame = runtime_error_from_ui_event(event);
                 if let Err(e) = write_msgpack_frame(&mut stream, &frame) {
-                    eprintln!("[JS] Socket bridge write failed: {e}");
+                    eprintln!("[IPC] Socket bridge write failed: {e}");
                     break;
                 }
             }
@@ -414,15 +388,15 @@ fn run_socket_server(
         }
     }
 
-    let _ = write_msgpack_frame(&mut stream, &RustToJsMessage::Shutdown);
+    let _ = write_msgpack_frame(&mut stream, &ServerMessage::Shutdown);
 
     let _ = read_thread.join();
     let _ = std::fs::remove_file(socket_path);
 
-    println!("[JS] Socket connection closed");
+    println!("[IPC] Socket connection closed");
 
     // JS runtime disconnected, exit the UI thread cleanly
-    let _ = command_sender.send(JsCommand::ExitApp);
+    let _ = command_sender.send(ClientCommand::ExitApp);
 
     Ok(())
 }

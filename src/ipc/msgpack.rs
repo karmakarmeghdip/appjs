@@ -7,8 +7,10 @@ use super::UiEvent;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
-pub enum RustToJsMessage {
-    UiEvent { event: UiEvent },
+pub enum ServerMessage {
+    UiEvent {
+        event: UiEvent,
+    },
     RuntimeError {
         source: String,
         message: String,
@@ -19,7 +21,7 @@ pub enum RustToJsMessage {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
-pub enum JsToRustMessage {
+pub enum ClientMessage {
     SetTitle {
         title: String,
     },

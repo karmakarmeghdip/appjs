@@ -10,7 +10,7 @@ export type MainAlign =
 
 export interface BoxStyle {
     fontSize?: number;
-    fontWeight?: number | string;
+    fontWeight?: number;
     fontStyle?: "normal" | "italic";
     fontFamily?: string;
     color?: string;
@@ -29,7 +29,7 @@ export interface BoxStyle {
     borderWidth?: number;
     cornerRadius?: number;
     borderRadius?: number;
-    padding?: number | string;
+    padding?: number | { top: number; right: number; bottom: number; left: number };
     width?: number;
     height?: number;
 

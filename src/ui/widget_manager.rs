@@ -24,96 +24,86 @@ pub struct WidgetInfo {
 pub struct WidgetManager {
     /// Maps JS string IDs → tracked widget info.
     pub widgets: HashMap<String, WidgetInfo>,
-    /// Tracks how many children each Flex container has (by JS id, or "__root__" for root).
-    pub child_counts: HashMap<String, usize>,
+    /// Maps a parent ID (or "__root__") to an ordered list of child IDs.
+    pub parent_to_children: HashMap<String, Vec<String>>,
 }
 
 impl WidgetManager {
     pub fn new() -> Self {
-        let mut child_counts = HashMap::new();
-        child_counts.insert("__root__".to_string(), 0);
+        let mut parent_to_children = HashMap::new();
+        parent_to_children.insert("__root__".to_string(), Vec::new());
         Self {
             widgets: HashMap::new(),
-            child_counts,
+            parent_to_children,
         }
     }
 
-    fn parent_matches(info: &WidgetInfo, parent_key: &str) -> bool {
-        match info.parent_id.as_deref() {
-            Some(pid) => pid == parent_key,
-            None => parent_key == "__root__",
-        }
+    pub fn register_widget(&mut self, id: String, info: WidgetInfo) {
+        let parent_key = info
+            .parent_id
+            .clone()
+            .unwrap_or_else(|| "__root__".to_string());
+        self.widgets.insert(id.clone(), info);
+        self.parent_to_children
+            .entry(parent_key)
+            .or_default()
+            .push(id.clone());
+        self.parent_to_children.entry(id).or_default();
     }
 
     pub fn current_child_count(&self, parent_key: &str) -> usize {
-        self.widgets
-            .values()
-            .filter(|info| Self::parent_matches(info, parent_key))
-            .count()
+        self.parent_to_children
+            .get(parent_key)
+            .map(|children| children.len())
+            .unwrap_or(0)
     }
 
-    pub fn next_child_index(&mut self, parent_key: &str) -> usize {
-        let idx = self.current_child_count(parent_key);
-        self.child_counts.insert(parent_key.to_string(), idx + 1);
-        idx
+    pub fn next_child_index(&self, parent_key: &str) -> usize {
+        self.current_child_count(parent_key)
     }
 
     fn collect_descendants(&self, parent_id: &str, out: &mut Vec<String>) {
-        let children: Vec<String> = self
-            .widgets
-            .iter()
-            .filter_map(|(id, info)| {
-                if info.parent_id.as_deref() == Some(parent_id) {
-                    Some(id.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        for child_id in children {
-            out.push(child_id.clone());
-            self.collect_descendants(&child_id, out);
+        if let Some(children) = self.parent_to_children.get(parent_id) {
+            for child_id in children {
+                out.push(child_id.clone());
+                self.collect_descendants(child_id, out);
+            }
         }
     }
 
     fn recompute_parent_state(&mut self, parent_key: &str) {
-        let mut child_ids: Vec<String> = self
-            .widgets
-            .iter()
-            .filter_map(|(id, info)| {
-                if Self::parent_matches(info, parent_key) {
-                    Some(id.clone())
-                } else {
-                    None
+        if let Some(children) = self.parent_to_children.get(parent_key) {
+            for (new_index, child_id) in children.iter().enumerate() {
+                if let Some(info) = self.widgets.get_mut(child_id) {
+                    info.child_index = new_index;
                 }
-            })
-            .collect();
-
-        child_ids.sort_by_key(|id| self.widgets.get(id).map(|w| w.child_index).unwrap_or(usize::MAX));
-
-        for (new_index, child_id) in child_ids.iter().enumerate() {
-            if let Some(info) = self.widgets.get_mut(child_id) {
-                info.child_index = new_index;
             }
         }
-
-        self.child_counts.insert(parent_key.to_string(), child_ids.len());
     }
 
     pub fn remove_widget_subtree(&mut self, id: &str) -> Option<WidgetInfo> {
         let removed = self.widgets.remove(id)?;
+        let parent_key = removed
+            .parent_id
+            .clone()
+            .unwrap_or_else(|| "__root__".to_string());
 
+        // Remove from parent's children list
+        if let Some(siblings) = self.parent_to_children.get_mut(&parent_key) {
+            siblings.retain(|child_id| child_id != id);
+        }
+
+        // Collect and remove all descendants recursively
         let mut descendants = Vec::new();
         self.collect_descendants(id, &mut descendants);
         for child_id in descendants {
             self.widgets.remove(&child_id);
-            self.child_counts.remove(&child_id);
+            self.parent_to_children.remove(&child_id);
         }
 
-        self.child_counts.remove(id);
+        // Remove the sublist for the widget
+        self.parent_to_children.remove(id);
 
-        let parent_key = removed.parent_id.as_deref().unwrap_or("__root__").to_string();
         self.recompute_parent_state(&parent_key);
 
         Some(removed)

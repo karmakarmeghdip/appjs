@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 /// Represents a parsed color value
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub enum ColorValue {
     /// RGBA color (0-255 per channel)
     Rgba { r: u8, g: u8, b: u8, a: u8 },
@@ -130,5 +130,16 @@ impl ColorValue {
                 other => Some(ColorValue::Named(other.to_string())),
             }
         }
+    }
+}
+
+impl<'de> Deserialize<'de> for ColorValue {
+    fn deserialize<D>(deserializer: D) -> Result<ColorValue, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        ColorValue::parse(&s)
+            .ok_or_else(|| serde::de::Error::custom(format!("Invalid color string: {}", s)))
     }
 }

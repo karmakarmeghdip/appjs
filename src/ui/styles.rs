@@ -86,7 +86,9 @@ pub fn build_box_properties(style: &BoxStyle) -> Properties {
         props = props.with(BorderColor::new(color_value_to_peniko(bc)));
     }
     if let Some(ref hbc) = style.hover_border_color {
-        props = props.with(HoveredBorderColor(BorderColor::new(color_value_to_peniko(hbc))));
+        props = props.with(HoveredBorderColor(BorderColor::new(color_value_to_peniko(
+            hbc,
+        ))));
     }
     if let Some(bw) = style.border_width {
         props = props.with(BorderWidth::all(bw));
@@ -134,7 +136,9 @@ pub fn apply_box_props_to_widget(
         widget.insert_prop(BorderColor::new(color_value_to_peniko(bc)));
     }
     if let Some(ref hbc) = style.hover_border_color {
-        widget.insert_prop(HoveredBorderColor(BorderColor::new(color_value_to_peniko(hbc))));
+        widget.insert_prop(HoveredBorderColor(BorderColor::new(color_value_to_peniko(
+            hbc,
+        ))));
     }
     if let Some(bw) = style.border_width {
         widget.insert_prop(BorderWidth::all(bw));

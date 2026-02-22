@@ -46,15 +46,12 @@ pub fn create(
             new_widget,
             style_ref.and_then(|s| s.flex),
         ) {
-            widget_manager.widgets.insert(
-                id,
-                WidgetInfo {
+            widget_manager.register_widget(id, WidgetInfo {
                     widget_id,
                     kind: WidgetKind::Svg,
                     parent_id: parent_id.clone(),
                     child_index,
-                },
-            );
+                });
         }
     } else {
         eprintln!("[UI] SVG widget '{}' missing svg_data/text payload", id);
