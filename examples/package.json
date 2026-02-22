@@ -1,11 +1,11 @@
 {
-  "name": "@vellum/examples",
+  "name": "@vellum-ui/examples",
   "private": true,
   "type": "module",
   "scripts": {},
   "dependencies": {
-    "@vellum/core": "workspace:*",
-    "@vellum/solid": "workspace:*",
+    "@vellum-ui/core": "workspace:*",
+    "@vellum-ui/solid": "workspace:*",
     "solid-js": "^1.9.11"
   },
   "devDependencies": {

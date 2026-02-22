@@ -1,5 +1,5 @@
 {
-  "name": "@vellum/monorepo",
+  "name": "@vellum-ui/monorepo",
   "private": true,
   "packageManager": "bun@1.2.22",
   "workspaces": [

@@ -1,7 +1,7 @@
 // Image Viewer — Solid TSX version
 // Fetches random images from picsum.photos
-import * as Vellum from "@vellum/core";
-import { createVellumRenderer, createSignal } from "@vellum/solid";
+import * as Vellum from "@vellum-ui/core";
+import { createVellumRenderer, createSignal } from "@vellum-ui/solid";
 
 const WIDTH = 400;
 const HEIGHT = 300;

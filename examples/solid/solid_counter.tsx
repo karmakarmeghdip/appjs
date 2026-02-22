@@ -1,5 +1,5 @@
-import * as Vellum from "@vellum/core";
-import { createVellumRenderer, createSignal } from "@vellum/solid";
+import * as Vellum from "@vellum-ui/core";
+import { createVellumRenderer, createSignal } from "@vellum-ui/solid";
 
 Vellum.window.setTitle("Vellum Solid TSX Demo");
 Vellum.window.resize(700, 460);

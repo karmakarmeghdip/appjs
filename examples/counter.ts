@@ -1,7 +1,7 @@
 // Counter App Example — TypeScript Version
 // Demonstrates that .ts files work with full type annotations
-import { body, button, column, events, label, row, ui, window } from "@vellum/core";
-import type { VellumEvent } from "@vellum/core";
+import { body, button, column, events, label, row, ui, window } from "@vellum-ui/core";
+import type { VellumEvent } from "@vellum-ui/core";
 
 // ---- App logic with TypeScript features ----
 

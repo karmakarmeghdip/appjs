@@ -1,8 +1,8 @@
 // Image Viewer Example
 // Fetches a random image from picsum.photos, shows a spinner while loading,
 // and provides a button to refetch a new image.
-import * as Vellum from "@vellum/core";
-import type { VellumEvent } from "@vellum/core";
+import * as Vellum from "@vellum-ui/core";
+import type { VellumEvent } from "@vellum-ui/core";
 
 const WIDTH = 400;
 const HEIGHT = 300;

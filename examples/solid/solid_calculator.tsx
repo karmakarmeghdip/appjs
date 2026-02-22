@@ -1,5 +1,5 @@
-import * as Vellum from "@vellum/core";
-import { createVellumRenderer, createSignal } from "@vellum/solid";
+import * as Vellum from "@vellum-ui/core";
+import { createVellumRenderer, createSignal } from "@vellum-ui/solid";
 
 type ThemeName = "light" | "dark";
 type Operator = "+" | "-" | "×" | "÷";
