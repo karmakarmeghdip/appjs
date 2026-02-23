@@ -2,7 +2,7 @@
 
 export * from "solid-js/dist/solid.js";
 export { Show } from "./control-flow";
-export { JSX } from "./types";
+export type { JSX } from "./types";
 
 export * from "./types";
 export * from "./renderer";
