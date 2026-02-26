@@ -2,7 +2,6 @@ import type {
     VellumEvent,
     VellumStyle,
     BoxStyle,
-    ButtonParams,
     CheckboxParams,
     ImageParams,
     ProgressBarParams,
@@ -83,14 +82,27 @@ export function label(id: string, parentId: string | null, text: string, style?:
     return id;
 }
 
-export function button(id: string, parentId: string | null, text: string, style?: VellumStyle): string {
-    ui.createWidget(id, "button", parentId, text, style ?? null);
-    return id;
-}
-
-export function iconButton(id: string, parentId: string | null, svgData: string, style?: VellumStyle): string {
-    const params: ButtonParams = { svgData };
-    ui.createWidget(id, "iconButton", parentId, null, style ?? null, params);
+export function button(
+    id: string,
+    parentId: string | null,
+    textOrStyle?: string | VellumStyle | null,
+    style?: VellumStyle
+): string {
+    if (typeof textOrStyle === "string") {
+        throw new Error(
+            "Vellum.button no longer accepts text. Use a container button with child widgets, e.g. <button><label .../></button> or add a separate label child."
+        );
+    }
+    if (style !== undefined) {
+        throw new Error(
+            "Vellum.button signature changed. Pass style as the third argument only: button(id, parentId, style)."
+        );
+    }
+    const resolvedStyle =
+        typeof textOrStyle === "string" || textOrStyle == null
+            ? (style ?? null)
+            : textOrStyle;
+    ui.createWidget(id, "button", parentId, null, resolvedStyle);
     return id;
 }
 
@@ -243,7 +255,6 @@ export const app = {
     nextId,
     label,
     button,
-    iconButton,
     svg,
     image,
     video,

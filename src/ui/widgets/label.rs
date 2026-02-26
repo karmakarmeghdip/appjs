@@ -1,5 +1,5 @@
 use masonry::app::RenderRoot;
-use masonry::core::{NewWidget, PropertySet, StyleProperty, WidgetId, WidgetOptions, WidgetTag};
+use masonry::core::{NewWidget, PropertySet, StyleProperty, WidgetOptions};
 use masonry::parley::style::{FontFamily, FontStack, GenericFamily};
 use masonry::peniko::Color;
 use masonry::properties::ContentColor;

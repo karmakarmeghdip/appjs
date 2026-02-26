@@ -1,5 +1,5 @@
 use masonry::app::RenderRoot;
-use masonry::core::{NewWidget, PropertySet, WidgetId, WidgetOptions, WidgetTag};
+use masonry::core::{NewWidget, WidgetOptions};
 use masonry::layout::Dim;
 use masonry::properties::Dimensions;
 use masonry::properties::types::{CrossAxisAlignment, MainAxisAlignment};
@@ -10,6 +10,7 @@ use crate::ui::styles::build_box_properties;
 use crate::ui::widget_manager::{WidgetInfo, WidgetManager};
 use crate::ui::widgets::utils::add_to_parent;
 
+#[allow(clippy::too_many_arguments)]
 pub fn create(
     render_root: &mut RenderRoot,
     widget_manager: &mut WidgetManager,
@@ -51,9 +52,7 @@ pub fn create(
         });
     }
 
-    let mut props = style_ref
-        .map(build_box_properties)
-        .unwrap_or_else(PropertySet::new);
+    let mut props = style_ref.map(build_box_properties).unwrap_or_default();
 
     if style_ref
         .and_then(|s| s.must_fill_main_axis)

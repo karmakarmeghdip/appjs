@@ -62,7 +62,12 @@ mod tests {
         assert!(serialized.contains("RuntimeError"));
 
         let deserialized: UiEvent = serde_json::from_str(&serialized).unwrap();
-        if let UiEvent::RuntimeError { source, message, fatal } = deserialized {
+        if let UiEvent::RuntimeError {
+            source,
+            message,
+            fatal,
+        } = deserialized
+        {
             assert_eq!(source, "js");
             assert_eq!(message, "Syntax Error");
             assert!(fatal);

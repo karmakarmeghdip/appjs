@@ -4,6 +4,7 @@ use super::widget_manager::WidgetManager;
 use super::widgets;
 use crate::ipc::{BoxStyle, WidgetData, WidgetKind};
 
+#[allow(clippy::too_many_arguments)]
 pub fn create_and_add_widget(
     render_root: &mut RenderRoot,
     widget_manager: &mut WidgetManager,
@@ -31,7 +32,7 @@ pub fn create_and_add_widget(
                 parent_id,
                 text,
                 style,
-                child_index
+                child_index,
             );
         }
         WidgetKind::Button => {
@@ -40,10 +41,8 @@ pub fn create_and_add_widget(
                 widget_manager,
                 id,
                 parent_id,
-                text,
                 style,
-                data,
-                child_index
+                child_index,
             );
         }
         WidgetKind::Svg => {
@@ -55,7 +54,7 @@ pub fn create_and_add_widget(
                 text,
                 style,
                 data,
-                child_index
+                child_index,
             );
         }
         WidgetKind::Flex | WidgetKind::Container => {
@@ -67,7 +66,7 @@ pub fn create_and_add_widget(
                 parent_id,
                 style,
                 data,
-                child_index
+                child_index,
             );
         }
         WidgetKind::SizedBox => {
@@ -77,7 +76,7 @@ pub fn create_and_add_widget(
                 id,
                 parent_id,
                 style,
-                child_index
+                child_index,
             );
         }
         WidgetKind::Checkbox => {
@@ -89,7 +88,7 @@ pub fn create_and_add_widget(
                 text,
                 style,
                 data,
-                child_index
+                child_index,
             );
         }
         WidgetKind::TextInput => {
@@ -101,7 +100,7 @@ pub fn create_and_add_widget(
                 text,
                 style,
                 data,
-                child_index
+                child_index,
             );
         }
         WidgetKind::TextArea => {
@@ -112,7 +111,7 @@ pub fn create_and_add_widget(
                 parent_id,
                 text,
                 style,
-                child_index
+                child_index,
             );
         }
         WidgetKind::Prose => {
@@ -123,7 +122,7 @@ pub fn create_and_add_widget(
                 parent_id,
                 text,
                 style,
-                child_index
+                child_index,
             );
         }
         WidgetKind::ProgressBar => {
@@ -134,7 +133,7 @@ pub fn create_and_add_widget(
                 parent_id,
                 style,
                 data,
-                child_index
+                child_index,
             );
         }
         WidgetKind::Spinner => {
@@ -144,7 +143,7 @@ pub fn create_and_add_widget(
                 id,
                 parent_id,
                 style,
-                child_index
+                child_index,
             );
         }
         WidgetKind::Slider => {
@@ -155,7 +154,7 @@ pub fn create_and_add_widget(
                 parent_id,
                 style,
                 data,
-                child_index
+                child_index,
             );
         }
         WidgetKind::ZStack => {
@@ -165,7 +164,7 @@ pub fn create_and_add_widget(
                 id,
                 parent_id,
                 style,
-                child_index
+                child_index,
             );
         }
         WidgetKind::Portal => {
@@ -175,7 +174,7 @@ pub fn create_and_add_widget(
                 id,
                 parent_id,
                 style,
-                child_index
+                child_index,
             );
         }
         WidgetKind::Grid => {
@@ -185,7 +184,7 @@ pub fn create_and_add_widget(
                 id,
                 parent_id,
                 style,
-                child_index
+                child_index,
             );
         }
         WidgetKind::Hoverable => {
@@ -195,7 +194,7 @@ pub fn create_and_add_widget(
                 id,
                 parent_id,
                 style,
-                child_index
+                child_index,
             );
         }
         WidgetKind::Custom(_) => {
@@ -207,7 +206,7 @@ pub fn create_and_add_widget(
                 parent_id,
                 text,
                 style,
-                child_index
+                child_index,
             );
         }
         WidgetKind::Image => {
@@ -218,7 +217,7 @@ pub fn create_and_add_widget(
                 parent_id,
                 style,
                 data,
-                child_index
+                child_index,
             );
         }
         WidgetKind::Video => {
@@ -229,7 +228,7 @@ pub fn create_and_add_widget(
                 parent_id,
                 style,
                 data,
-                child_index
+                child_index,
             );
         }
     }

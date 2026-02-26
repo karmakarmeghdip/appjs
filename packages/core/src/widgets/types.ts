@@ -16,10 +16,6 @@ export type SliderStyle = BoxStyle;
 export type ZStackStyle = BoxStyle;
 export type PortalStyle = BoxStyle;
 
-export interface ButtonData {
-    svgData?: string;
-}
-
 export interface SvgData {
     svgData?: string;
 }

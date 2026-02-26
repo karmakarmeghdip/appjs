@@ -291,16 +291,18 @@ function Calculator() {
             <column style={cardStyle}>
                 <row mainAxisAlignment="center">
                     <row style={toggleWrapStyle}>
-                        <iconButton
+                        <button
                             style={() => toggleButtonStyle(themeName() === "light")}
-                            svgData={sunSvg}
                             onClick={() => setThemeName("light")}
-                        />
-                        <iconButton
+                        >
+                            <svg svg_data={sunSvg} color={() => theme().iconStroke} />
+                        </button>
+                        <button
                             style={() => toggleButtonStyle(themeName() === "dark")}
-                            svgData={moonSvg}
                             onClick={() => setThemeName("dark")}
-                        />
+                        >
+                            <svg svg_data={moonSvg} color={() => theme().iconStroke} />
+                        </button>
                     </row>
                 </row>
 
@@ -354,11 +356,10 @@ function Calculator() {
 
                     <row gap={10} mainAxisAlignment="spaceBetween">
                         <box width={72} height={64}>
-                            <iconButton
+                            <button
                                 style={() => ({ ...numberButtonStyle(), iconSize: 18 })}
-                                svgData={backspaceSvg}
                                 onClick={backspace}
-                            />
+                            ><svg text={backspaceSvg}></svg></button>
                         </box>
                         <box width={72} height={64}>{textButton("0", numberButtonStyle, () => inputDigit("0"))}</box>
                         <box width={72} height={64}>{textButton(".", numberButtonStyle, inputDecimal)}</box>

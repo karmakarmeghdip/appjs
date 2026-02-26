@@ -52,7 +52,6 @@ fn create_unique_overlay_key(width: u32, height: u32) -> ImageData {
 /// A widget that plays video from a file path or HTTP URL using GStreamer.
 pub struct VideoWidget {
     pipeline: Option<gst::Element>,
-    pipeline_receiver: Option<Receiver<Option<gst::Element>>>,
 
     overlay_key: ImageData,
     current_image: ImageBrush,
@@ -96,7 +95,6 @@ impl VideoWidget {
 
         Self {
             pipeline,
-            pipeline_receiver: None,
             dim_receiver: Some(dim_rx),
             overlay_key,
             current_image,
@@ -116,7 +114,6 @@ impl VideoWidget {
         let current_image = ImageBrush::from(overlay_key.clone());
         Self {
             pipeline: None,
-            pipeline_receiver: None,
             dim_receiver: None,
             overlay_key,
             current_image,
@@ -157,7 +154,7 @@ impl VideoWidget {
     /// Build the GStreamer pipeline
     fn build_pipeline(
         uri: &str,
-        overlay_key: ImageData,
+        _overlay_key: ImageData,
         dim_tx: std::sync::mpsc::Sender<(u32, u32, ImageData)>,
         shared_id: Arc<Mutex<Option<WidgetId>>>,
     ) -> Option<gst::Element> {
@@ -280,15 +277,13 @@ impl VideoWidget {
                         );
 
                         // Wake the UI to redraw if we know the WidgetId
-                        if let Ok(id_lock) = shared_id.lock() {
-                            if let Some(id) = *id_lock {
-                                if let Some((proxy, win_id)) = get_event_loop_proxy() {
-                                    let action = VideoAction::FrameReady(id);
-                                    let erased: ErasedAction = Box::new(action);
-                                    let _ = proxy
-                                        .send_event(MasonryUserEvent::AsyncAction(win_id, erased));
-                                }
-                            }
+                        if let Ok(id_lock) = shared_id.lock()
+                            && let Some(id) = *id_lock
+                            && let Some((proxy, win_id)) = get_event_loop_proxy()
+                        {
+                            let action = VideoAction::FrameReady(id);
+                            let erased: ErasedAction = Box::new(action);
+                            let _ = proxy.send_event(MasonryUserEvent::AsyncAction(win_id, erased));
                         }
                     }
 
@@ -302,10 +297,10 @@ impl VideoWidget {
 
     /// Start playback.
     fn start_playback(&mut self) {
-        if let Some(ref pipeline) = self.pipeline {
-            if let Err(e) = pipeline.set_state(gst::State::Playing) {
-                eprintln!("[VideoWidget] Failed to start playback: {}", e);
-            }
+        if let Some(ref pipeline) = self.pipeline
+            && let Err(e) = pipeline.set_state(gst::State::Playing)
+        {
+            eprintln!("[VideoWidget] Failed to start playback: {}", e);
         }
     }
 
@@ -360,11 +355,11 @@ impl VideoWidget {
     }
 
     /// Set a new video source on an existing widget.
+    #[allow(dead_code)]
     pub fn set_src(this: &mut WidgetMut<'_, Self>, src: &str) {
         // Stop old pipeline
         this.widget.stop_playback();
         this.widget.pipeline = None;
-        this.widget.pipeline_receiver = None;
 
         // Remove old texture override and make a new dummy key
         if let Some((proxy, win_id)) = get_event_loop_proxy() {
@@ -399,19 +394,19 @@ impl VideoWidget {
 
     pub fn play(this: &mut WidgetMut<'_, Self>) {
         this.widget.started = true;
-        if let Some(ref pipeline) = this.widget.pipeline {
-            if let Err(e) = pipeline.set_state(gst::State::Playing) {
-                eprintln!("[VideoWidget] Failed to play: {}", e);
-            }
+        if let Some(ref pipeline) = this.widget.pipeline
+            && let Err(e) = pipeline.set_state(gst::State::Playing)
+        {
+            eprintln!("[VideoWidget] Failed to play: {}", e);
         }
     }
 
     pub fn pause(this: &mut WidgetMut<'_, Self>) {
         this.widget.started = false;
-        if let Some(ref pipeline) = this.widget.pipeline {
-            if let Err(e) = pipeline.set_state(gst::State::Paused) {
-                eprintln!("[VideoWidget] Failed to pause: {}", e);
-            }
+        if let Some(ref pipeline) = this.widget.pipeline
+            && let Err(e) = pipeline.set_state(gst::State::Paused)
+        {
+            eprintln!("[VideoWidget] Failed to pause: {}", e);
         }
     }
 
@@ -467,19 +462,16 @@ impl Widget for VideoWidget {
         // Wait... how does the appsink know the widget_id? We don't have it on creation!
         // The easiest way is for appsink to not know widget_id, OR we find it out here and pass it back.
         // Actually, appsink needs the WidgetId to send FrameReady. We don't have it in `new()`.
-        match event {
-            Update::WidgetAdded => {
-                if !self.started {
-                    self.start_playback();
-                    self.started = true;
-                }
-
-                // Store our WidgetId so the Gstreamer thread can trigger redraws
-                if let Ok(mut id_lock) = self.shared_widget_id.lock() {
-                    *id_lock = Some(ctx.widget_id());
-                }
+        if event == &Update::WidgetAdded {
+            if !self.started {
+                self.start_playback();
+                self.started = true;
             }
-            _ => {}
+
+            // Store our WidgetId so the Gstreamer thread can trigger redraws
+            if let Ok(mut id_lock) = self.shared_widget_id.lock() {
+                *id_lock = Some(ctx.widget_id());
+            }
         }
     }
 
@@ -500,25 +492,6 @@ impl Widget for VideoWidget {
         _props: &PropertiesRef<'_>,
         size: masonry::kurbo::Size,
     ) {
-        // Use video dimensions as intrinsic size, fall back to a reasonable default
-        let mut w = if self.video_width > 0 {
-            self.video_width as f64
-        } else {
-            320.0
-        };
-        let mut h = if self.video_height > 0 {
-            self.video_height as f64
-        } else {
-            240.0
-        };
-
-        if let Some(sw) = self.style_width {
-            w = sw;
-        }
-        if let Some(sh) = self.style_height {
-            h = sh;
-        }
-
         self.last_size = size;
     }
 

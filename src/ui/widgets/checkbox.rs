@@ -1,5 +1,5 @@
 use masonry::app::RenderRoot;
-use masonry::core::{NewWidget, PropertySet, WidgetId, WidgetOptions, WidgetTag};
+use masonry::core::{NewWidget, WidgetOptions};
 use masonry::widgets::Checkbox;
 
 use crate::ipc::{BoxStyle, WidgetData, WidgetKind};
@@ -7,6 +7,7 @@ use crate::ui::styles::build_box_properties;
 use crate::ui::widget_manager::{WidgetInfo, WidgetManager};
 use crate::ui::widgets::utils::add_to_parent;
 
+#[allow(clippy::too_many_arguments)]
 pub fn create(
     render_root: &mut RenderRoot,
     widget_manager: &mut WidgetManager,
@@ -28,9 +29,7 @@ pub fn create(
 
     let checkbox = Checkbox::new(checked, label_text);
 
-    let props = style_ref
-        .map(build_box_properties)
-        .unwrap_or_else(PropertySet::new);
+    let props = style_ref.map(build_box_properties).unwrap_or_default();
     let new_widget = NewWidget::new_with(checkbox, None, WidgetOptions::default(), props);
     let widget_id = new_widget.id();
 

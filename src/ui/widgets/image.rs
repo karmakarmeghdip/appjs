@@ -1,5 +1,5 @@
 use masonry::app::RenderRoot;
-use masonry::core::{NewWidget, PropertySet, WidgetId, WidgetOptions, WidgetTag};
+use masonry::core::{NewWidget, WidgetId, WidgetOptions};
 use masonry::peniko::{ImageAlphaType, ImageData, ImageFormat};
 use masonry::properties::ObjectFit;
 use masonry::widgets::Image;
@@ -77,9 +77,7 @@ pub fn create(
         .unwrap_or(ObjectFit::Contain);
 
     let style_ref = style.as_ref();
-    let mut props = style_ref
-        .map(build_box_properties)
-        .unwrap_or_else(PropertySet::new);
+    let mut props = style_ref.map(build_box_properties).unwrap_or_default();
     props = props.with(object_fit);
 
     let new_widget = NewWidget::new_with(

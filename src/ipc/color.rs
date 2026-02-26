@@ -14,8 +14,7 @@ impl ColorValue {
     /// or named CSS colors.
     pub fn parse(s: &str) -> Option<Self> {
         let s = s.trim();
-        if s.starts_with('#') {
-            let hex = &s[1..];
+        if let Some(hex) = s.strip_prefix('#') {
             match hex.len() {
                 6 => {
                     let r = u8::from_str_radix(&hex[0..2], 16).ok()?;

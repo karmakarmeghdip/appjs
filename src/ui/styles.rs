@@ -244,6 +244,7 @@ pub fn apply_flex_style(flex: &mut masonry::core::WidgetMut<'_, Flex>, style: &B
     }
 }
 
+#[cfg(test)]
 pub fn default_text_style_props() -> Vec<StyleProperty> {
     vec![
         StyleProperty::FontSize(20.0),

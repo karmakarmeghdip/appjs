@@ -1,5 +1,5 @@
 use masonry::app::RenderRoot;
-use masonry::core::{NewWidget, PropertySet, WidgetId, WidgetOptions, WidgetTag};
+use masonry::core::{NewWidget, WidgetOptions};
 
 use crate::ipc::{BoxStyle, WidgetData, WidgetKind};
 use crate::ui::styles::build_box_properties;
@@ -20,30 +20,20 @@ pub fn create(
     let src = match &data {
         Some(WidgetData::Video { src }) => src.as_str(),
         _ => {
-            eprintln!(
-                "[UI] Video widget '{}' missing src in WidgetData",
-                id
-            );
+            eprintln!("[UI] Video widget '{}' missing src in WidgetData", id);
             return;
         }
     };
 
     let style_ref = style.as_ref();
-    let props = style_ref
-        .map(build_box_properties)
-        .unwrap_or_else(PropertySet::new);
+    let props = style_ref.map(build_box_properties).unwrap_or_default();
 
     let mut video_widget = VideoWidget::new(src);
     if let Some(s) = style_ref {
         video_widget = video_widget.with_width(s.width).with_height(s.height);
     }
 
-    let new_widget = NewWidget::new_with(
-        video_widget,
-        None,
-        WidgetOptions::default(),
-        props,
-    );
+    let new_widget = NewWidget::new_with(video_widget, None, WidgetOptions::default(), props);
     let widget_id = new_widget.id();
 
     if add_to_parent(

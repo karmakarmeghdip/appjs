@@ -18,14 +18,11 @@ pub type UiEventReceiver = Receiver<UiEvent>;
 pub struct ClientCommandSender {
     proxy: EventLoopProxy,
     window_id: WindowId,
-    }
+}
 
 impl ClientCommandSender {
     pub fn new(proxy: EventLoopProxy, window_id: WindowId) -> Self {
-        Self {
-            proxy,
-            window_id,
-                    }
+        Self { proxy, window_id }
     }
 
     /// Send a ClientCommand to the UI thread by wrapping it in MasonryUserEvent::Action.

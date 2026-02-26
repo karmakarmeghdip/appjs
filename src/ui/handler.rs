@@ -174,7 +174,10 @@ pub fn handle_client_command(
                     report_runtime_error(
                         _event_sender,
                         "ui-handler",
-                        format!("PlayVideo on {:?} is not supported for widget '{id}'", info.kind),
+                        format!(
+                            "PlayVideo on {:?} is not supported for widget '{id}'",
+                            info.kind
+                        ),
                         false,
                     );
                 }
@@ -195,7 +198,10 @@ pub fn handle_client_command(
                     report_runtime_error(
                         _event_sender,
                         "ui-handler",
-                        format!("PauseVideo on {:?} is not supported for widget '{id}'", info.kind),
+                        format!(
+                            "PauseVideo on {:?} is not supported for widget '{id}'",
+                            info.kind
+                        ),
                         false,
                     );
                 }
@@ -216,7 +222,10 @@ pub fn handle_client_command(
                     report_runtime_error(
                         _event_sender,
                         "ui-handler",
-                        format!("SeekVideo on {:?} is not supported for widget '{id}'", info.kind),
+                        format!(
+                            "SeekVideo on {:?} is not supported for widget '{id}'",
+                            info.kind
+                        ),
                         false,
                     );
                 }
@@ -291,7 +300,8 @@ pub fn handle_client_command(
 
                             let child_count = masonry::core::CollectionWidget::len(&*flex.widget);
                             for index in 0..child_count {
-                                let mut inner = masonry::core::CollectionWidget::get_mut(&mut flex, index);
+                                let mut inner =
+                                    masonry::core::CollectionWidget::get_mut(&mut flex, index);
 
                                 if let Some(mut label) = inner.try_downcast::<Label>() {
                                     if let Some(ref color) = style.color {
@@ -357,10 +367,18 @@ pub fn handle_client_command(
                     }
                     WidgetKind::Video => {
                         render_root.edit_widget(widget_id, |mut widget| {
-                            let mut video = widget.downcast::<crate::ui::widgets::video_widget_impl::VideoWidget>();
+                            let mut video = widget
+                                .downcast::<crate::ui::widgets::video_widget_impl::VideoWidget>(
+                            );
                             apply_box_props_to_widget(&mut video, &style);
-                            crate::ui::widgets::video_widget_impl::VideoWidget::set_width(&mut video, style.width);
-                            crate::ui::widgets::video_widget_impl::VideoWidget::set_height(&mut video, style.height);
+                            crate::ui::widgets::video_widget_impl::VideoWidget::set_width(
+                                &mut video,
+                                style.width,
+                            );
+                            crate::ui::widgets::video_widget_impl::VideoWidget::set_height(
+                                &mut video,
+                                style.height,
+                            );
                         });
                     }
                     _ => {
@@ -398,29 +416,27 @@ pub fn handle_client_command(
             // Build a partial style and delegate
             // Build a JSON value properly so control characters (newlines in SVG
             // strings, etc.) are escaped correctly instead of being embedded raw.
-            let parsed_value: serde_json::Value =
-                if let Ok(n) = value.parse::<f64>() {
-                    serde_json::Value::Number(
-                        serde_json::Number::from_f64(n)
-                            .unwrap_or_else(|| serde_json::Number::from(0)),
-                    )
-                } else if value == "true" {
-                    serde_json::Value::Bool(true)
-                } else if value == "false" {
-                    serde_json::Value::Bool(false)
-                } else if (value.starts_with('{') || value.starts_with('['))
-                    && serde_json::from_str::<serde_json::Value>(&value).is_ok()
-                {
-                    serde_json::from_str(&value).unwrap()
-                } else {
-                    // Strip surrounding quotes if present, then use
-                    // serde_json::Value::String which handles escaping.
-                    let raw = value
-                        .strip_prefix('"')
-                        .and_then(|s| s.strip_suffix('"'))
-                        .unwrap_or(&value);
-                    serde_json::Value::String(raw.to_string())
-                };
+            let parsed_value: serde_json::Value = if let Ok(n) = value.parse::<f64>() {
+                serde_json::Value::Number(
+                    serde_json::Number::from_f64(n).unwrap_or_else(|| serde_json::Number::from(0)),
+                )
+            } else if value == "true" {
+                serde_json::Value::Bool(true)
+            } else if value == "false" {
+                serde_json::Value::Bool(false)
+            } else if (value.starts_with('{') || value.starts_with('['))
+                && serde_json::from_str::<serde_json::Value>(&value).is_ok()
+            {
+                serde_json::from_str(&value).unwrap()
+            } else {
+                // Strip surrounding quotes if present, then use
+                // serde_json::Value::String which handles escaping.
+                let raw = value
+                    .strip_prefix('"')
+                    .and_then(|s| s.strip_suffix('"'))
+                    .unwrap_or(&value);
+                serde_json::Value::String(raw.to_string())
+            };
 
             let json_str = serde_json::json!({ &property: parsed_value }).to_string();
 

@@ -68,13 +68,13 @@ impl AppDriver for VellumDriver {
                 let mut cb = w.downcast::<Checkbox>();
                 Checkbox::set_checked(&mut cb, toggled.0);
             });
-            if let Some(id) = self.find_client_id(widget_id) {
-                if let Err(send_err) = self.event_sender.send(UiEvent::WidgetAction {
+            if let Some(id) = self.find_client_id(widget_id)
+                && let Err(send_err) = self.event_sender.send(UiEvent::WidgetAction {
                     widget_id: id,
                     action: WidgetActionKind::ValueChanged(if toggled.0 { 1.0 } else { 0.0 }),
-                }) {
-                    eprintln!("[UI] Failed to forward checkbox toggle to JS thread: {send_err}");
-                }
+                })
+            {
+                eprintln!("[UI] Failed to forward checkbox toggle to JS thread: {send_err}");
             }
             return;
         }
@@ -82,41 +82,39 @@ impl AppDriver for VellumDriver {
         if let Some(hover_action) = action.downcast_ref::<HoverAction>() {
             // The action is submitted by the Hoverable widget itself,
             // so widget_id is the Hoverable's masonry WidgetId.
-            if let Some(id) = self.find_client_id(widget_id) {
-                if let Err(send_err) = self.event_sender.send(UiEvent::WidgetAction {
+            if let Some(id) = self.find_client_id(widget_id)
+                && let Err(send_err) = self.event_sender.send(UiEvent::WidgetAction {
                     widget_id: id,
                     action: WidgetActionKind::HoverChanged(hover_action.hovered),
-                }) {
-                    eprintln!("[UI] Failed to forward hover change to JS thread: {send_err}");
-                }
+                })
+            {
+                eprintln!("[UI] Failed to forward hover change to JS thread: {send_err}");
             }
             return;
         }
 
         // Handle Slider value change (Action = f64)
         if let Some(&value) = action.downcast_ref::<f64>() {
-            if let Some(id) = self.find_client_id(widget_id) {
-                if let Err(send_err) = self.event_sender.send(UiEvent::WidgetAction {
+            if let Some(id) = self.find_client_id(widget_id)
+                && let Err(send_err) = self.event_sender.send(UiEvent::WidgetAction {
                     widget_id: id,
                     action: WidgetActionKind::ValueChanged(value),
-                }) {
-                    eprintln!(
-                        "[UI] Failed to forward slider value change to JS thread: {send_err}"
-                    );
-                }
+                })
+            {
+                eprintln!("[UI] Failed to forward slider value change to JS thread: {send_err}");
             }
             return;
         }
 
         // Handle button presses exactly as Masonry examples do.
         if action.is::<ButtonPress>() {
-            if let Some(id) = self.find_client_id(widget_id) {
-                if let Err(send_err) = self.event_sender.send(UiEvent::WidgetAction {
+            if let Some(id) = self.find_client_id(widget_id)
+                && let Err(send_err) = self.event_sender.send(UiEvent::WidgetAction {
                     widget_id: id,
                     action: WidgetActionKind::Click,
-                }) {
-                    eprintln!("[UI] Failed to forward button click to JS thread: {send_err}");
-                }
+                })
+            {
+                eprintln!("[UI] Failed to forward button click to JS thread: {send_err}");
             }
             return;
         }

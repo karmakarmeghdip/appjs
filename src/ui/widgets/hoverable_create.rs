@@ -1,5 +1,5 @@
 use masonry::app::RenderRoot;
-use masonry::core::{NewWidget, PropertySet, WidgetId, WidgetOptions, WidgetTag};
+use masonry::core::{NewWidget, WidgetOptions};
 
 use crate::ipc::{BoxStyle, WidgetKind};
 use crate::ui::styles::build_box_properties;
@@ -20,9 +20,7 @@ pub fn create(
 
     let hoverable = Hoverable::new_empty();
 
-    let props = style_ref
-        .map(build_box_properties)
-        .unwrap_or_else(PropertySet::new);
+    let props = style_ref.map(build_box_properties).unwrap_or_default();
     let new_widget = NewWidget::new_with(hoverable, None, WidgetOptions::default(), props);
     let widget_id = new_widget.id();
 

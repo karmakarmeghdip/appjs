@@ -98,9 +98,6 @@ pub enum WidgetData {
     /// Label — no extra data (text comes from the `text` field)
     Label,
 
-    /// Button — optional SVG icon data
-    Button { svg_data: Option<String> },
-
     /// SVG widget
     Svg { svg_data: Option<String> },
 
@@ -307,7 +304,7 @@ mod tests {
                 height: Some(40.0),
                 ..Default::default()
             }),
-            data: Some(WidgetData::Button { svg_data: None }),
+            data: None,
         };
 
         let serialized = serde_json::to_string(&cmd).unwrap();

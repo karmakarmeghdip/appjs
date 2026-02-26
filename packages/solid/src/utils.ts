@@ -17,7 +17,9 @@ export function normalizeWidgetKind(tag: string): string {
   switch (tag) {
     case "iconButton":
     case "icon_button":
-      return "button";
+      throw new Error(
+        "<iconButton> is deprecated. Use <button><svg svg_data={...} /></button> instead."
+      );
     case "row":
     case "column":
       return "flex";

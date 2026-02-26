@@ -1,5 +1,5 @@
 use masonry::app::RenderRoot;
-use masonry::core::{NewWidget, PropertySet, WidgetId, WidgetOptions, WidgetTag};
+use masonry::core::{NewWidget, WidgetOptions};
 use masonry::widgets::Flex;
 
 use crate::ipc::{BoxStyle, WidgetKind};
@@ -19,9 +19,7 @@ pub fn create(
     // Grid is not natively supported yet, fallback to Flex column
     let flex = Flex::column();
 
-    let props = style_ref
-        .map(build_box_properties)
-        .unwrap_or_else(PropertySet::new);
+    let props = style_ref.map(build_box_properties).unwrap_or_default();
     let new_widget = NewWidget::new_with(flex, None, WidgetOptions::default(), props);
     let widget_id = new_widget.id();
 

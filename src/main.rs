@@ -35,7 +35,6 @@ fn main() {
         println!("[Main] RUST_LOG set to info");
     }
 
-
     println!("[Main] Operating in Client-Server Socket IPC Mode");
 
     // Phase 1: Build the EventLoop and extract EventLoopProxy (non-blocking).

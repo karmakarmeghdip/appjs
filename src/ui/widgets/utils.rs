@@ -68,7 +68,11 @@ pub fn add_to_parent(
                 let parent_wid = parent_info.widget_id;
                 render_root.edit_widget(parent_wid, |mut parent_widget| {
                     let mut zs = parent_widget.downcast::<ZStack>();
-                    masonry::core::CollectionWidget::add(&mut zs, new_widget, ChildAlignment::ParentAligned);
+                    masonry::core::CollectionWidget::add(
+                        &mut zs,
+                        new_widget,
+                        ChildAlignment::ParentAligned,
+                    );
                 });
                 true
             }
@@ -106,4 +110,3 @@ pub fn add_to_parent(
         false
     }
 }
-

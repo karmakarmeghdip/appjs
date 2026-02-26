@@ -1,5 +1,5 @@
 use masonry::app::RenderRoot;
-use masonry::core::{NewWidget, PropertySet, StyleProperty, WidgetId, WidgetOptions, WidgetTag};
+use masonry::core::{NewWidget, PropertySet, StyleProperty, WidgetOptions};
 use masonry::parley::style::{FontFamily, FontStack, GenericFamily};
 use masonry::peniko::Color;
 use masonry::properties::ContentColor;
@@ -10,6 +10,7 @@ use crate::ui::styles::{build_box_properties, build_text_styles};
 use crate::ui::widget_manager::{WidgetInfo, WidgetManager};
 use crate::ui::widgets::utils::add_to_parent;
 
+#[allow(clippy::too_many_arguments)]
 pub fn create(
     render_root: &mut RenderRoot,
     widget_manager: &mut WidgetManager,

@@ -1,9 +1,9 @@
 use std::any::TypeId;
 
 use masonry::accesskit::{Node, Role};
-use masonry::core::{MeasureCtx, PropertiesRef, 
-    AccessCtx, ChildrenIds, HasProperty, LayoutCtx, NoAction, PaintCtx,
-    PropertiesMut, RegisterCtx, Update, UpdateCtx, Widget, WidgetMut,
+use masonry::core::{
+    AccessCtx, ChildrenIds, HasProperty, LayoutCtx, MeasureCtx, NoAction, PaintCtx, PropertiesMut,
+    PropertiesRef, RegisterCtx, Update, UpdateCtx, Widget, WidgetMut,
 };
 use masonry::kurbo::{Affine, Size};
 use masonry::peniko::color::{AlphaColor, Srgb};
@@ -139,9 +139,7 @@ impl Widget for SvgWidget {
         };
 
         match len_req {
-            masonry::layout::LenReq::MinContent | masonry::layout::LenReq::MaxContent => {
-                preferred
-            }
+            masonry::layout::LenReq::MinContent | masonry::layout::LenReq::MaxContent => preferred,
             masonry::layout::LenReq::FitContent(space) => preferred.min(space),
         }
     }

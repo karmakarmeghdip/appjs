@@ -5,7 +5,5 @@ use masonry::widgets::Flex;
 /// This is an empty root Flex column tagged with ROOT_FLEX_TAG.
 /// It fills the entire window, letting JS-created children control their own layout.
 pub fn create_initial_ui() -> Flex {
-    Flex::column()
-        .cross_axis_alignment(CrossAxisAlignment::Stretch)
-        
+    Flex::column().cross_axis_alignment(CrossAxisAlignment::Stretch)
 }

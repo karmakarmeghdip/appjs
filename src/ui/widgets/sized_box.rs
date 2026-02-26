@@ -1,5 +1,5 @@
 use masonry::app::RenderRoot;
-use masonry::core::{NewWidget, PropertySet, WidgetId, WidgetOptions, WidgetTag};
+use masonry::core::{NewWidget, WidgetOptions};
 use masonry::layout::Length;
 use masonry::widgets::SizedBox;
 
@@ -28,9 +28,7 @@ pub fn create(
         }
     }
 
-    let props = style_ref
-        .map(build_box_properties)
-        .unwrap_or_else(PropertySet::new);
+    let props = style_ref.map(build_box_properties).unwrap_or_default();
     let new_widget = NewWidget::new_with(sized, None, WidgetOptions::default(), props);
     let widget_id = new_widget.id();
 

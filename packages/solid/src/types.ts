@@ -188,8 +188,7 @@ export interface VellumIntrinsicElements {
   column: VellumCommonProps;
   container: VellumCommonProps;
   sizedBox: VellumCommonProps;
-  button: VellumCommonProps & { text?: string | (() => string); };
-  iconButton: VellumCommonProps;
+  button: VellumCommonProps;
   label: VellumCommonProps;
   textInput: TextInputProps;
   textArea: VellumCommonProps;

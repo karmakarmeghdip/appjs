@@ -41,6 +41,11 @@ export function collectInitialWidgetState(node: HostElement): {
     if (name === "src" || name === "playing" || name === "position") continue;
 
     if (name === "text") {
+      if (kind === "button") {
+        throw new Error(
+          "<button text={...}> is deprecated. Use <button><label text={...} /></button> instead."
+        );
+      }
       text = String(value);
       continue;
     }

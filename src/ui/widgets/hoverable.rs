@@ -1,7 +1,7 @@
 use masonry::accesskit::{Node, Role};
-use masonry::core::{MeasureCtx, PropertiesRef, 
-    AccessCtx, ChildrenIds, LayoutCtx, NewWidget, PaintCtx, PropertiesMut,
-    RegisterCtx, Update, UpdateCtx, Widget, WidgetMut, WidgetPod,
+use masonry::core::{
+    AccessCtx, ChildrenIds, LayoutCtx, MeasureCtx, NewWidget, PaintCtx, PropertiesMut,
+    PropertiesRef, RegisterCtx, Update, UpdateCtx, Widget, WidgetMut, WidgetPod,
 };
 use masonry::vello::Scene;
 use masonry::widgets::SizedBox;
@@ -43,9 +43,7 @@ impl Hoverable {
         let hovered = self.self_hovered || self.child_hovered;
         if hovered != self.effective_hovered {
             self.effective_hovered = hovered;
-            ctx.submit_action::<<Hoverable as Widget>::Action>(HoverAction {
-                hovered,
-            });
+            ctx.submit_action::<<Hoverable as Widget>::Action>(HoverAction { hovered });
         }
     }
 }
@@ -83,7 +81,13 @@ impl Widget for Hoverable {
         len_req: masonry::layout::LenReq,
         cross_length: Option<f64>,
     ) -> f64 {
-        ctx.compute_length(&mut self.child, len_req.into(), masonry::layout::LayoutSize::maybe(axis.cross(), cross_length), axis, cross_length)
+        ctx.compute_length(
+            &mut self.child,
+            len_req.into(),
+            masonry::layout::LayoutSize::maybe(axis.cross(), cross_length),
+            axis,
+            cross_length,
+        )
     }
 
     fn layout(
@@ -92,7 +96,11 @@ impl Widget for Hoverable {
         _props: &PropertiesRef<'_>,
         size: masonry::kurbo::Size,
     ) {
-        let child_size = ctx.compute_size(&mut self.child, masonry::layout::SizeDef::fit(size), size.into());
+        let child_size = ctx.compute_size(
+            &mut self.child,
+            masonry::layout::SizeDef::fit(size),
+            size.into(),
+        );
         ctx.run_layout(&mut self.child, child_size);
         ctx.place_child(&mut self.child, masonry::kurbo::Point::ORIGIN);
         ctx.derive_baselines(&self.child);

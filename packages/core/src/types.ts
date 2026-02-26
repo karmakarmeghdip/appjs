@@ -45,10 +45,6 @@ export interface BoxStyle {
 
 export type VellumStyle = BoxStyle;
 
-export interface ButtonParams {
-    svgData?: string;
-}
-
 export interface SvgParams {
     svgData?: string;
 }

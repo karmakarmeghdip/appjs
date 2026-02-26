@@ -1,5 +1,5 @@
 use masonry::app::RenderRoot;
-use masonry::core::{NewWidget, PropertySet, WidgetId, WidgetOptions, WidgetTag};
+use masonry::core::{NewWidget, WidgetOptions};
 use masonry::widgets::Slider;
 
 use crate::ipc::{BoxStyle, WidgetData, WidgetKind};
@@ -34,9 +34,7 @@ pub fn create(
         slider = slider.with_step(step);
     }
 
-    let props = style_ref
-        .map(build_box_properties)
-        .unwrap_or_else(PropertySet::new);
+    let props = style_ref.map(build_box_properties).unwrap_or_default();
     let new_widget = NewWidget::new_with(slider, None, WidgetOptions::default(), props);
     let widget_id = new_widget.id();
 

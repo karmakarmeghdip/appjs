@@ -63,7 +63,7 @@ fn runtime_error_from_ui_event(event: UiEvent) -> ServerMessage {
 fn parse_widget_kind(kind: &str) -> WidgetKind {
     match kind {
         "Label" | "label" => WidgetKind::Label,
-        "Button" | "button" | "iconButton" | "icon_button" => WidgetKind::Button,
+        "Button" | "button" => WidgetKind::Button,
         "Svg" | "svg" | "svgIcon" | "svg_icon" | "icon" => WidgetKind::Svg,
         "TextInput" | "textInput" | "text_input" => WidgetKind::TextInput,
         "TextArea" | "textArea" | "text_area" => WidgetKind::TextArea,
@@ -121,13 +121,13 @@ fn parse_padding_shorthand(raw: &str) -> Option<serde_json::Value> {
 fn parse_box_style_lossy(style_json: &str) -> Option<BoxStyle> {
     let mut value = serde_json::from_str::<serde_json::Value>(style_json).ok()?;
 
-    if let Some(obj) = value.as_object_mut() {
-        if let Some(padding_value) = obj.get("padding").and_then(|v| v.as_str()) {
-            if let Some(parsed_padding) = parse_padding_shorthand(padding_value) {
-                obj.insert("padding".to_string(), parsed_padding);
-            } else {
-                obj.remove("padding");
-            }
+    if let Some(obj) = value.as_object_mut()
+        && let Some(padding_value) = obj.get("padding").and_then(|v| v.as_str())
+    {
+        if let Some(parsed_padding) = parse_padding_shorthand(padding_value) {
+            obj.insert("padding".to_string(), parsed_padding);
+        } else {
+            obj.remove("padding");
         }
     }
 
@@ -158,9 +158,7 @@ fn handle_client_message(message: ClientMessage) -> Option<ClientCommand> {
                 kind: parsed_kind,
                 parent_id,
                 text,
-                style: style_json
-                    .as_deref()
-                    .and_then(parse_box_style_lossy),
+                style: style_json.as_deref().and_then(parse_box_style_lossy),
                 data: widget_data,
             })
         }
@@ -276,10 +274,7 @@ fn build_widget_data(
     match kind {
         WidgetKind::Label => Some(WidgetData::Label),
 
-        WidgetKind::Button => {
-            let svg_data = get_string("svgData").or_else(|| get_string("svg_data"));
-            Some(WidgetData::Button { svg_data })
-        }
+        WidgetKind::Button => None,
 
         WidgetKind::Svg => {
             let svg_data = get_string("svgData")
@@ -383,26 +378,23 @@ fn run_socket_server(
             loop {
                 match read_msgpack_frame::<_, ClientMessage>(&mut read_stream) {
                     Ok(message) => {
-                        println!("[IPC Debug] Received message from JS: {:?}", message);
-                        if let Some(cmd) = handle_client_message(message) {
-                            if let Err(send_err) = command_sender_clone.send(cmd) {
-                                let _ = error_tx.send(RuntimeErrorReport {
-                                    source: "ui-thread".to_string(),
-                                    message: format!(
-                                        "Failed to dispatch JS command to UI thread: {send_err}"
-                                    ),
-                                    fatal: true,
-                                });
-                                break;
-                            }
+                        if let Some(cmd) = handle_client_message(message)
+                            && let Err(send_err) = command_sender_clone.send(cmd)
+                        {
+                            let _ = error_tx.send(RuntimeErrorReport {
+                                source: "ui-thread".to_string(),
+                                message: format!(
+                                    "Failed to dispatch JS command to UI thread: {send_err}"
+                                ),
+                                fatal: true,
+                            });
+                            break;
                         }
                     }
                     Err(e) if e.kind() == ErrorKind::UnexpectedEof => {
-                        println!("[IPC Debug] Client disconnected: {:?}", e);
                         break;
                     }
                     Err(e) => {
-                        println!("[IPC Debug] MsgPack decode error: {:?}", e);
                         let _ = error_tx.send(RuntimeErrorReport {
                             source: "socket-read".to_string(),
                             message: format!("Failed to decode MsgPack command from JS: {e}"),
@@ -414,6 +406,7 @@ fn run_socket_server(
         })?;
 
     let mut should_stop = false;
+
     while !should_stop {
         loop {
             match error_rx.try_recv() {
