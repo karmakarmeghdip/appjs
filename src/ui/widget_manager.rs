@@ -5,7 +5,7 @@ use masonry::widgets::Flex;
 use std::collections::HashMap;
 
 /// Tag for the root Flex container that holds all dynamically created widgets.
-pub const ROOT_FLEX_TAG: WidgetTag<Flex> = WidgetTag::new("root_flex");
+pub const ROOT_FLEX_TAG: WidgetTag<Flex> = WidgetTag::named("root_flex");
 
 /// Information tracked for each JS-created widget.
 #[derive(Debug, Clone)]

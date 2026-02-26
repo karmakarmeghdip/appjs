@@ -1,7 +1,7 @@
 use masonry::accesskit::{Node, Role};
-use masonry::core::{
-    AccessCtx, BoxConstraints, ChildrenIds, LayoutCtx, NewWidget, PaintCtx, PropertiesMut,
-    PropertiesRef, RegisterCtx, Update, UpdateCtx, Widget, WidgetMut, WidgetPod,
+use masonry::core::{MeasureCtx, PropertiesRef, 
+    AccessCtx, ChildrenIds, LayoutCtx, NewWidget, PaintCtx, PropertiesMut,
+    RegisterCtx, Update, UpdateCtx, Widget, WidgetMut, WidgetPod,
 };
 use masonry::vello::Scene;
 use masonry::widgets::SizedBox;
@@ -75,21 +75,27 @@ impl Widget for Hoverable {
         }
     }
 
+    fn measure(
+        &mut self,
+        ctx: &mut MeasureCtx<'_>,
+        _props: &PropertiesRef<'_>,
+        axis: masonry::kurbo::Axis,
+        len_req: masonry::layout::LenReq,
+        cross_length: Option<f64>,
+    ) -> f64 {
+        ctx.compute_length(&mut self.child, len_req.into(), masonry::layout::LayoutSize::maybe(axis.cross(), cross_length), axis, cross_length)
+    }
+
     fn layout(
         &mut self,
         ctx: &mut LayoutCtx<'_>,
-        _props: &mut PropertiesMut<'_>,
-        bc: &BoxConstraints,
-    ) -> masonry::kurbo::Size {
-        let size = ctx.run_layout(&mut self.child, bc);
+        _props: &PropertiesRef<'_>,
+        size: masonry::kurbo::Size,
+    ) {
+        let child_size = ctx.compute_size(&mut self.child, masonry::layout::SizeDef::fit(size), size.into());
+        ctx.run_layout(&mut self.child, child_size);
         ctx.place_child(&mut self.child, masonry::kurbo::Point::ORIGIN);
-        let insets = ctx.compute_insets_from_child(&self.child, size);
-        ctx.set_paint_insets(insets);
-        let baseline_offset = ctx.child_baseline_offset(&self.child);
-        if baseline_offset > 0.0 {
-            ctx.set_baseline_offset(baseline_offset);
-        }
-        size
+        ctx.derive_baselines(&self.child);
     }
 
     fn paint(&mut self, _ctx: &mut PaintCtx<'_>, _props: &PropertiesRef<'_>, _scene: &mut Scene) {}

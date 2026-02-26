@@ -3,6 +3,7 @@
 
 pub mod creation;
 pub mod driver;
+pub mod global_state;
 pub mod handler;
 pub mod layout;
 pub mod styles;
@@ -38,6 +39,9 @@ pub fn prepare_ui() -> (UiSetup, masonry_winit::app::EventLoop) {
         .unwrap_or_else(|e| panic!("Fatal: failed to build UI event loop: {e}"));
 
     let proxy = event_loop.create_proxy();
+    
+    // Initialize the global state with the proxy so other threads (like Video) can wake the UI.
+    global_state::init_global_app_context(proxy.clone(), window_id);
 
     let setup = UiSetup { window_id, proxy };
     (setup, event_loop)

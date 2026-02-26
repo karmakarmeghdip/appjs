@@ -1,5 +1,5 @@
 use masonry::app::RenderRoot;
-use masonry::core::{NewWidget, Properties, WidgetId, WidgetOptions};
+use masonry::core::{NewWidget, PropertySet, WidgetId, WidgetOptions, WidgetTag};
 use masonry::peniko::{ImageAlphaType, ImageData, ImageFormat};
 use masonry::properties::ObjectFit;
 use masonry::widgets::Image;
@@ -35,7 +35,7 @@ fn parse_object_fit(s: &str) -> ObjectFit {
     match s.to_lowercase().as_str() {
         "contain" => ObjectFit::Contain,
         "cover" => ObjectFit::Cover,
-        "fill" => ObjectFit::Fill,
+        "fill" => ObjectFit::Stretch,
         "none" => ObjectFit::None,
         "scale-down" | "scaledown" | "scale_down" => ObjectFit::ScaleDown,
         _ => ObjectFit::Contain,
@@ -50,7 +50,6 @@ pub fn create(
     style: Option<BoxStyle>,
     data: Option<WidgetData>,
     child_index: usize,
-    widget_id: WidgetId,
 ) {
     // Extract image-specific data from WidgetData
     let (image_data_bytes, object_fit_str) = match &data {
@@ -80,15 +79,16 @@ pub fn create(
     let style_ref = style.as_ref();
     let mut props = style_ref
         .map(build_box_properties)
-        .unwrap_or_else(Properties::new);
+        .unwrap_or_else(PropertySet::new);
     props = props.with(object_fit);
 
     let new_widget = NewWidget::new_with(
         Image::new(image_data),
-        widget_id,
+        None,
         WidgetOptions::default(),
         props,
     );
+    let widget_id = new_widget.id();
 
     if add_to_parent(
         render_root,

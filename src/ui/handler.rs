@@ -9,7 +9,9 @@ use winit::dpi::PhysicalSize;
 use crate::ipc::{BoxStyle, ClientCommand, UiEventSender, WidgetKind};
 
 use super::creation::create_and_add_widget;
-use super::styles::{apply_box_props_to_widget, apply_flex_style, build_text_styles};
+use super::styles::{
+    apply_box_props_to_widget, apply_flex_style, build_text_styles, color_value_to_peniko,
+};
 use super::widget_manager::{ROOT_FLEX_TAG, WidgetManager};
 use super::widgets::svg_widget_impl::SvgWidget;
 use super::widgets::video_widget_impl::VideoWidget;
@@ -286,6 +288,35 @@ pub fn handle_client_command(
                             let mut child = Button::child_mut(&mut button);
                             let mut flex = child.downcast::<Flex>();
                             apply_flex_style(&mut flex, &style);
+
+                            let child_count = masonry::core::CollectionWidget::len(&*flex.widget);
+                            for index in 0..child_count {
+                                let mut inner = masonry::core::CollectionWidget::get_mut(&mut flex, index);
+
+                                if let Some(mut label) = inner.try_downcast::<Label>() {
+                                    if let Some(ref color) = style.color {
+                                        label.insert_prop(masonry::properties::ContentColor::new(
+                                            color_value_to_peniko(color),
+                                        ));
+                                    }
+                                    continue;
+                                }
+
+                                if let Some(mut svg) = inner.try_downcast::<SvgWidget>() {
+                                    if let Some(ref color) = style.color {
+                                        svg.insert_prop(masonry::properties::ContentColor::new(
+                                            color_value_to_peniko(color),
+                                        ));
+                                    }
+
+                                    if let Some(icon_size) = style.icon_size {
+                                        svg.insert_prop(masonry::properties::Dimensions::fixed(
+                                            masonry::layout::Length::px(icon_size),
+                                            masonry::layout::Length::px(icon_size),
+                                        ));
+                                    }
+                                }
+                            }
                         });
                     }
                     WidgetKind::Svg => {
@@ -467,7 +498,7 @@ pub fn handle_client_command(
 
                 if parent_key == "__root__" {
                     render_root.edit_widget_with_tag(ROOT_FLEX_TAG, |mut flex| {
-                        Flex::remove_child(&mut flex, safe_index);
+                        masonry::core::CollectionWidget::remove(&mut flex, safe_index);
                     });
                 } else if let Some(parent_info) = widget_manager.widgets.get(parent_key) {
                     let parent_wid = parent_info.widget_id;
@@ -475,7 +506,7 @@ pub fn handle_client_command(
                         WidgetKind::Flex | WidgetKind::Container => {
                             render_root.edit_widget(parent_wid, |mut parent_widget| {
                                 let mut flex = parent_widget.downcast::<Flex>();
-                                Flex::remove_child(&mut flex, safe_index);
+                                masonry::core::CollectionWidget::remove(&mut flex, safe_index);
                             });
                         }
                         WidgetKind::Button => {
@@ -483,7 +514,7 @@ pub fn handle_client_command(
                                 let mut button = parent_widget.downcast::<Button>();
                                 let mut child = Button::child_mut(&mut button);
                                 let mut flex = child.downcast::<Flex>();
-                                Flex::remove_child(&mut flex, safe_index);
+                                masonry::core::CollectionWidget::remove(&mut flex, safe_index);
                             });
                         }
                         WidgetKind::SizedBox => {
@@ -495,7 +526,7 @@ pub fn handle_client_command(
                         WidgetKind::ZStack => {
                             render_root.edit_widget(parent_wid, |mut parent_widget| {
                                 let mut zstack = parent_widget.downcast::<ZStack>();
-                                ZStack::remove_child(&mut zstack, safe_index);
+                                masonry::core::CollectionWidget::remove(&mut zstack, safe_index);
                             });
                         }
                         _ => {

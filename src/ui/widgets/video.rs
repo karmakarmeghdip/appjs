@@ -1,5 +1,5 @@
 use masonry::app::RenderRoot;
-use masonry::core::{NewWidget, Properties, WidgetId, WidgetOptions};
+use masonry::core::{NewWidget, PropertySet, WidgetId, WidgetOptions, WidgetTag};
 
 use crate::ipc::{BoxStyle, WidgetData, WidgetKind};
 use crate::ui::styles::build_box_properties;
@@ -15,7 +15,6 @@ pub fn create(
     style: Option<BoxStyle>,
     data: Option<WidgetData>,
     child_index: usize,
-    widget_id: WidgetId,
 ) {
     // Extract src from WidgetData
     let src = match &data {
@@ -32,7 +31,7 @@ pub fn create(
     let style_ref = style.as_ref();
     let props = style_ref
         .map(build_box_properties)
-        .unwrap_or_else(Properties::new);
+        .unwrap_or_else(PropertySet::new);
 
     let mut video_widget = VideoWidget::new(src);
     if let Some(s) = style_ref {
@@ -41,10 +40,11 @@ pub fn create(
 
     let new_widget = NewWidget::new_with(
         video_widget,
-        widget_id,
+        None,
         WidgetOptions::default(),
         props,
     );
+    let widget_id = new_widget.id();
 
     if add_to_parent(
         render_root,

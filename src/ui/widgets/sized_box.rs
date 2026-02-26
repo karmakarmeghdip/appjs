@@ -1,6 +1,6 @@
 use masonry::app::RenderRoot;
-use masonry::core::{NewWidget, Properties, WidgetId, WidgetOptions};
-use masonry::properties::types::Length;
+use masonry::core::{NewWidget, PropertySet, WidgetId, WidgetOptions, WidgetTag};
+use masonry::layout::Length;
 use masonry::widgets::SizedBox;
 
 use crate::ipc::{BoxStyle, WidgetKind};
@@ -15,7 +15,6 @@ pub fn create(
     parent_id: Option<String>,
     style: Option<BoxStyle>,
     child_index: usize,
-    widget_id: WidgetId,
 ) {
     let style_ref = style.as_ref();
 
@@ -31,8 +30,9 @@ pub fn create(
 
     let props = style_ref
         .map(build_box_properties)
-        .unwrap_or_else(Properties::new);
-    let new_widget = NewWidget::new_with(sized, widget_id, WidgetOptions::default(), props);
+        .unwrap_or_else(PropertySet::new);
+    let new_widget = NewWidget::new_with(sized, None, WidgetOptions::default(), props);
+    let widget_id = new_widget.id();
 
     if add_to_parent(
         render_root,

@@ -6,6 +6,6 @@ use masonry::widgets::Flex;
 /// It fills the entire window, letting JS-created children control their own layout.
 pub fn create_initial_ui() -> Flex {
     Flex::column()
-        .cross_axis_alignment(CrossAxisAlignment::Fill)
-        .must_fill_main_axis(true)
+        .cross_axis_alignment(CrossAxisAlignment::Stretch)
+        
 }

@@ -175,25 +175,22 @@ function Calculator() {
         width: 360,
     });
 
-    const makeLucideSvg = (paths: string, stroke: string) =>
-        `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+    const makeLucideSvg = (paths: string) =>
+        `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 
     const sunSvg = () =>
         makeLucideSvg(
-            "<circle cx='12' cy='12' r='4'/><path d='M12 2v2'/><path d='M12 20v2'/><path d='m4.93 4.93 1.41 1.41'/><path d='m17.66 17.66 1.41 1.41'/><path d='M2 12h2'/><path d='M20 12h2'/><path d='m6.34 17.66-1.41 1.41'/><path d='m19.07 4.93-1.41 1.41'/>",
-            theme().iconStroke
+            "<circle cx='12' cy='12' r='4'/><path d='M12 2v2'/><path d='M12 20v2'/><path d='m4.93 4.93 1.41 1.41'/><path d='m17.66 17.66 1.41 1.41'/><path d='M2 12h2'/><path d='M20 12h2'/><path d='m6.34 17.66-1.41 1.41'/><path d='m19.07 4.93-1.41 1.41'/>"
         );
 
     const moonSvg = () =>
         makeLucideSvg(
-            "<path d='M12 3a7.5 7.5 0 1 0 9 9A9 9 0 1 1 12 3z'/>",
-            theme().iconStroke
+            "<path d='M12 3a7.5 7.5 0 1 0 9 9A9 9 0 1 1 12 3z'/>"
         );
 
     const backspaceSvg = () =>
         makeLucideSvg(
-            "<path d='M22 3H7l-5 9 5 9h15V3Z'/><path d='m10 10 4 4'/><path d='m14 10-4 4'/>",
-            theme().numberButtonText
+            "<path d='M22 3H7l-5 9 5 9h15V3Z'/><path d='m10 10 4 4'/><path d='m14 10-4 4'/>"
         );
 
     const toggleWrapStyle = () => ({
@@ -205,6 +202,7 @@ function Calculator() {
 
     const toggleButtonStyle = (isActive: boolean) => ({
         background: isActive ? theme().toggleActiveBg : "transparent",
+        color: theme().iconStroke,
         cornerRadius: 10,
         width: 42,
         height: 30,
@@ -257,6 +255,25 @@ function Calculator() {
         fontWeight: 900,
     });
 
+    const buttonLabelStyle = (buttonStyle: () => { color: string; fontSize: number; fontWeight: number }) => () => {
+        const style = buttonStyle();
+        return {
+            color: style.color,
+            fontSize: style.fontSize,
+            fontWeight: style.fontWeight,
+        };
+    };
+
+    const textButton = (
+        text: string,
+        styleGetter: () => { color: string; fontSize: number; fontWeight: number },
+        onClick: () => void
+    ) => (
+        <button type="button" style={styleGetter} onClick={onClick}>
+            <label text={text} style={buttonLabelStyle(styleGetter)} />
+        </button>
+    );
+
     const shellBackground = () => ({
         background: theme().rootBackground,
     });
@@ -301,38 +318,38 @@ function Calculator() {
                 <column gap={10}>
                     <row gap={10} mainAxisAlignment="spaceBetween">
                         <box width={72} height={64}>
-                            <button type="button" text="AC" style={functionButtonStyle} onClick={clearAll} />
+                            {textButton("AC", functionButtonStyle, clearAll)}
                         </box>
                         <box width={72} height={64}>
-                            <button type="button" text="±" style={functionButtonStyle} onClick={toggleSign} />
+                            {textButton("±", functionButtonStyle, toggleSign)}
                         </box>
                         <box width={72} height={64}>
-                            <button type="button" text="%" style={functionButtonStyle} onClick={percentage} />
+                            {textButton("%", functionButtonStyle, percentage)}
                         </box>
                         <box width={72} height={64}>
-                            <button type="button" text="÷" style={operatorButtonStyle} onClick={() => commitOperator("÷")} />
+                            {textButton("÷", operatorButtonStyle, () => commitOperator("÷"))}
                         </box>
                     </row>
 
                     <row gap={10} mainAxisAlignment="spaceBetween">
-                        <box width={72} height={64}><button type="button" text="7" style={numberButtonStyle} onClick={() => inputDigit("7")} /></box>
-                        <box width={72} height={64}><button type="button" text="8" style={numberButtonStyle} onClick={() => inputDigit("8")} /></box>
-                        <box width={72} height={64}><button type="button" text="9" style={numberButtonStyle} onClick={() => inputDigit("9")} /></box>
-                        <box width={72} height={64}><button type="button" text="×" style={operatorButtonStyle} onClick={() => commitOperator("×")} /></box>
+                        <box width={72} height={64}>{textButton("7", numberButtonStyle, () => inputDigit("7"))}</box>
+                        <box width={72} height={64}>{textButton("8", numberButtonStyle, () => inputDigit("8"))}</box>
+                        <box width={72} height={64}>{textButton("9", numberButtonStyle, () => inputDigit("9"))}</box>
+                        <box width={72} height={64}>{textButton("×", operatorButtonStyle, () => commitOperator("×"))}</box>
                     </row>
 
                     <row gap={10} mainAxisAlignment="spaceBetween">
-                        <box width={72} height={64}><button type="button" text="4" style={numberButtonStyle} onClick={() => inputDigit("4")} /></box>
-                        <box width={72} height={64}><button type="button" text="5" style={numberButtonStyle} onClick={() => inputDigit("5")} /></box>
-                        <box width={72} height={64}><button type="button" text="6" style={numberButtonStyle} onClick={() => inputDigit("6")} /></box>
-                        <box width={72} height={64}><button type="button" text="−" style={operatorButtonStyle} onClick={() => commitOperator("-")} /></box>
+                        <box width={72} height={64}>{textButton("4", numberButtonStyle, () => inputDigit("4"))}</box>
+                        <box width={72} height={64}>{textButton("5", numberButtonStyle, () => inputDigit("5"))}</box>
+                        <box width={72} height={64}>{textButton("6", numberButtonStyle, () => inputDigit("6"))}</box>
+                        <box width={72} height={64}>{textButton("−", operatorButtonStyle, () => commitOperator("-"))}</box>
                     </row>
 
                     <row gap={10} mainAxisAlignment="spaceBetween">
-                        <box width={72} height={64}><button type="button" text="1" style={numberButtonStyle} onClick={() => inputDigit("1")} /></box>
-                        <box width={72} height={64}><button type="button" text="2" style={numberButtonStyle} onClick={() => inputDigit("2")} /></box>
-                        <box width={72} height={64}><button type="button" text="3" style={numberButtonStyle} onClick={() => inputDigit("3")} /></box>
-                        <box width={72} height={64}><button type="button" text="+" style={operatorButtonStyle} onClick={() => commitOperator("+")} /></box>
+                        <box width={72} height={64}>{textButton("1", numberButtonStyle, () => inputDigit("1"))}</box>
+                        <box width={72} height={64}>{textButton("2", numberButtonStyle, () => inputDigit("2"))}</box>
+                        <box width={72} height={64}>{textButton("3", numberButtonStyle, () => inputDigit("3"))}</box>
+                        <box width={72} height={64}>{textButton("+", operatorButtonStyle, () => commitOperator("+"))}</box>
                     </row>
 
                     <row gap={10} mainAxisAlignment="spaceBetween">
@@ -343,9 +360,9 @@ function Calculator() {
                                 onClick={backspace}
                             />
                         </box>
-                        <box width={72} height={64}><button type="button" text="0" style={numberButtonStyle} onClick={() => inputDigit("0")} /></box>
-                        <box width={72} height={64}><button type="button" text="." style={numberButtonStyle} onClick={inputDecimal} /></box>
-                        <box width={72} height={64}><button type="button" text="=" style={equalsButtonStyle} onClick={() => commitOperator(null)} /></box>
+                        <box width={72} height={64}>{textButton("0", numberButtonStyle, () => inputDigit("0"))}</box>
+                        <box width={72} height={64}>{textButton(".", numberButtonStyle, inputDecimal)}</box>
+                        <box width={72} height={64}>{textButton("=", equalsButtonStyle, () => commitOperator(null))}</box>
                     </row>
                 </column>
             </column>

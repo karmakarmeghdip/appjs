@@ -9,7 +9,7 @@ use std::thread;
 use std::time::Duration;
 
 use crate::ipc::msgpack::{ClientMessage, ServerMessage, read_msgpack_frame, write_msgpack_frame};
-use crate::ipc::{ClientCommand, IpcServerChannels, UiEvent, WidgetData, WidgetKind};
+use crate::ipc::{BoxStyle, ClientCommand, IpcServerChannels, UiEvent, WidgetData, WidgetKind};
 use crate::socket::{bind_socket, get_socket_path};
 
 /// Run the JS runtime bridge on a background thread.
@@ -85,6 +85,55 @@ fn parse_widget_kind(kind: &str) -> WidgetKind {
     }
 }
 
+fn parse_padding_shorthand(raw: &str) -> Option<serde_json::Value> {
+    let values: Vec<f64> = raw
+        .split(',')
+        .map(str::trim)
+        .filter(|segment| !segment.is_empty())
+        .map(str::parse::<f64>)
+        .collect::<Result<_, _>>()
+        .ok()?;
+
+    match values.as_slice() {
+        [all] => Some(serde_json::json!(*all)),
+        [vertical, horizontal] => Some(serde_json::json!({
+            "top": *vertical,
+            "right": *horizontal,
+            "bottom": *vertical,
+            "left": *horizontal
+        })),
+        [top, horizontal, bottom] => Some(serde_json::json!({
+            "top": *top,
+            "right": *horizontal,
+            "bottom": *bottom,
+            "left": *horizontal
+        })),
+        [top, right, bottom, left] => Some(serde_json::json!({
+            "top": *top,
+            "right": *right,
+            "bottom": *bottom,
+            "left": *left
+        })),
+        _ => None,
+    }
+}
+
+fn parse_box_style_lossy(style_json: &str) -> Option<BoxStyle> {
+    let mut value = serde_json::from_str::<serde_json::Value>(style_json).ok()?;
+
+    if let Some(obj) = value.as_object_mut() {
+        if let Some(padding_value) = obj.get("padding").and_then(|v| v.as_str()) {
+            if let Some(parsed_padding) = parse_padding_shorthand(padding_value) {
+                obj.insert("padding".to_string(), parsed_padding);
+            } else {
+                obj.remove("padding");
+            }
+        }
+    }
+
+    serde_json::from_value::<BoxStyle>(value).ok()
+}
+
 fn handle_client_message(message: ClientMessage) -> Option<ClientCommand> {
     match message {
         ClientMessage::SetTitle { title } => Some(ClientCommand::SetTitle(title)),
@@ -111,7 +160,7 @@ fn handle_client_message(message: ClientMessage) -> Option<ClientCommand> {
                 text,
                 style: style_json
                     .as_deref()
-                    .and_then(|s| serde_json::from_str(s).ok()),
+                    .and_then(parse_box_style_lossy),
                 data: widget_data,
             })
         }
@@ -124,7 +173,7 @@ fn handle_client_message(message: ClientMessage) -> Option<ClientCommand> {
         }
         ClientMessage::SetWidgetStyle { id, style_json } => Some(ClientCommand::SetWidgetStyle {
             id,
-            style: serde_json::from_str(&style_json).unwrap_or_default(),
+            style: parse_box_style_lossy(&style_json).unwrap_or_default(),
         }),
         ClientMessage::SetStyleProperty {
             id,
@@ -334,6 +383,7 @@ fn run_socket_server(
             loop {
                 match read_msgpack_frame::<_, ClientMessage>(&mut read_stream) {
                     Ok(message) => {
+                        println!("[IPC Debug] Received message from JS: {:?}", message);
                         if let Some(cmd) = handle_client_message(message) {
                             if let Err(send_err) = command_sender_clone.send(cmd) {
                                 let _ = error_tx.send(RuntimeErrorReport {
@@ -347,8 +397,12 @@ fn run_socket_server(
                             }
                         }
                     }
-                    Err(e) if e.kind() == ErrorKind::UnexpectedEof => break,
+                    Err(e) if e.kind() == ErrorKind::UnexpectedEof => {
+                        println!("[IPC Debug] Client disconnected: {:?}", e);
+                        break;
+                    }
                     Err(e) => {
+                        println!("[IPC Debug] MsgPack decode error: {:?}", e);
                         let _ = error_tx.send(RuntimeErrorReport {
                             source: "socket-read".to_string(),
                             message: format!("Failed to decode MsgPack command from JS: {e}"),

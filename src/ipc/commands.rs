@@ -188,6 +188,7 @@ pub struct BoxStyle {
     pub padding: Option<PaddingValue>,
     pub width: Option<f64>,
     pub height: Option<f64>,
+    pub icon_size: Option<f64>,
 
     // -- Flex-child property (how this widget behaves inside a Flex parent) --
     pub flex: Option<f64>,

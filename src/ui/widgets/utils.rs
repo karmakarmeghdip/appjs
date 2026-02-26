@@ -22,9 +22,9 @@ pub fn add_to_parent(
     if parent_id.is_none() {
         render_root.edit_widget_with_tag(ROOT_FLEX_TAG, |mut flex| {
             if let Some(factor) = flex_factor {
-                Flex::add_flex_child(&mut flex, new_widget, factor);
+                masonry::core::CollectionWidget::add(&mut flex, new_widget, factor);
             } else {
-                Flex::add_child(&mut flex, new_widget);
+                Flex::add_fixed(&mut flex, new_widget);
             }
         });
         true
@@ -35,9 +35,9 @@ pub fn add_to_parent(
                 render_root.edit_widget(parent_wid, |mut parent_widget| {
                     let mut flex = parent_widget.downcast::<Flex>();
                     if let Some(factor) = flex_factor {
-                        Flex::add_flex_child(&mut flex, new_widget, factor);
+                        masonry::core::CollectionWidget::add(&mut flex, new_widget, factor);
                     } else {
-                        Flex::add_child(&mut flex, new_widget);
+                        Flex::add_fixed(&mut flex, new_widget);
                     }
                 });
                 true
@@ -49,9 +49,9 @@ pub fn add_to_parent(
                     let mut child = masonry::widgets::Button::child_mut(&mut btn);
                     let mut flex = child.downcast::<Flex>();
                     if let Some(factor) = flex_factor {
-                        Flex::add_flex_child(&mut flex, new_widget, factor);
+                        masonry::core::CollectionWidget::add(&mut flex, new_widget, factor);
                     } else {
-                        Flex::add_child(&mut flex, new_widget);
+                        Flex::add_fixed(&mut flex, new_widget);
                     }
                 });
                 true
@@ -68,7 +68,7 @@ pub fn add_to_parent(
                 let parent_wid = parent_info.widget_id;
                 render_root.edit_widget(parent_wid, |mut parent_widget| {
                     let mut zs = parent_widget.downcast::<ZStack>();
-                    ZStack::insert_child(&mut zs, new_widget, ChildAlignment::ParentAligned);
+                    masonry::core::CollectionWidget::add(&mut zs, new_widget, ChildAlignment::ParentAligned);
                 });
                 true
             }

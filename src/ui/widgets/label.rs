@@ -1,5 +1,5 @@
 use masonry::app::RenderRoot;
-use masonry::core::{NewWidget, Properties, StyleProperty, WidgetId, WidgetOptions};
+use masonry::core::{NewWidget, PropertySet, StyleProperty, WidgetId, WidgetOptions, WidgetTag};
 use masonry::parley::style::{FontFamily, FontStack, GenericFamily};
 use masonry::peniko::Color;
 use masonry::properties::ContentColor;
@@ -19,7 +19,6 @@ pub fn create(
     text: Option<String>,
     style: Option<BoxStyle>,
     child_index: usize,
-    widget_id: WidgetId,
 ) {
     let label_text = text.as_deref().unwrap_or("[Label]");
     let mut label = Label::new(label_text);
@@ -39,8 +38,9 @@ pub fn create(
 
     let props = style_ref
         .map(build_box_properties)
-        .unwrap_or_else(|| Properties::new().with(ContentColor::new(Color::WHITE)));
-    let new_widget = NewWidget::new_with(label, widget_id, WidgetOptions::default(), props);
+        .unwrap_or_else(|| PropertySet::new().with(ContentColor::new(Color::WHITE)));
+    let new_widget = NewWidget::new_with(label, None, WidgetOptions::default(), props);
+    let widget_id = new_widget.id();
 
     if add_to_parent(
         render_root,

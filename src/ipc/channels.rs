@@ -1,6 +1,6 @@
 use std::sync::mpsc::{self, Receiver, Sender};
 
-use masonry::core::{ErasedAction, WidgetId};
+use masonry::core::ErasedAction;
 use masonry_winit::app::{EventLoopProxy, MasonryUserEvent, WindowId};
 
 use super::commands::ClientCommand;
@@ -18,19 +18,14 @@ pub type UiEventReceiver = Receiver<UiEvent>;
 pub struct ClientCommandSender {
     proxy: EventLoopProxy,
     window_id: WindowId,
-    /// A sentinel WidgetId used for MasonryUserEvent::Action.
-    /// Since the action originates from JS (not a widget), this ID is
-    /// ignored by our on_action handler.
-    sentinel_widget_id: WidgetId,
-}
+    }
 
 impl ClientCommandSender {
     pub fn new(proxy: EventLoopProxy, window_id: WindowId) -> Self {
         Self {
             proxy,
             window_id,
-            sentinel_widget_id: WidgetId::next(),
-        }
+                    }
     }
 
     /// Send a ClientCommand to the UI thread by wrapping it in MasonryUserEvent::Action.
@@ -38,11 +33,7 @@ impl ClientCommandSender {
     pub fn send(&self, cmd: ClientCommand) -> Result<(), String> {
         let action: ErasedAction = Box::new(ClientCommandAction(cmd));
         self.proxy
-            .send_event(MasonryUserEvent::Action(
-                self.window_id,
-                action,
-                self.sentinel_widget_id,
-            ))
+            .send_event(MasonryUserEvent::AsyncAction(self.window_id, action))
             .map_err(|e| format!("EventLoopProxy send failed: {e:?}"))
     }
 }

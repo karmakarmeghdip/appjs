@@ -1,9 +1,9 @@
 use std::any::TypeId;
 
 use masonry::accesskit::{Node, Role};
-use masonry::core::{
-    AccessCtx, BoxConstraints, ChildrenIds, HasProperty, LayoutCtx, NoAction, PaintCtx,
-    PropertiesMut, PropertiesRef, RegisterCtx, Update, UpdateCtx, Widget, WidgetMut,
+use masonry::core::{MeasureCtx, PropertiesRef, 
+    AccessCtx, ChildrenIds, HasProperty, LayoutCtx, NoAction, PaintCtx,
+    PropertiesMut, RegisterCtx, Update, UpdateCtx, Widget, WidgetMut,
 };
 use masonry::kurbo::{Affine, Size};
 use masonry::peniko::color::{AlphaColor, Srgb};
@@ -124,14 +124,35 @@ impl Widget for SvgWidget {
     ) {
     }
 
+    fn measure(
+        &mut self,
+        _ctx: &mut MeasureCtx<'_>,
+        _props: &PropertiesRef<'_>,
+        axis: masonry::kurbo::Axis,
+        len_req: masonry::layout::LenReq,
+        _cross_length: Option<f64>,
+    ) -> f64 {
+        let intrinsic = self.intrinsic_size();
+        let preferred = match axis {
+            masonry::kurbo::Axis::Horizontal => intrinsic.width.max(1.0),
+            masonry::kurbo::Axis::Vertical => intrinsic.height.max(1.0),
+        };
+
+        match len_req {
+            masonry::layout::LenReq::MinContent | masonry::layout::LenReq::MaxContent => {
+                preferred
+            }
+            masonry::layout::LenReq::FitContent(space) => preferred.min(space),
+        }
+    }
+
     fn layout(
         &mut self,
         _ctx: &mut LayoutCtx<'_>,
-        _props: &mut PropertiesMut<'_>,
-        bc: &BoxConstraints,
-    ) -> Size {
+        _props: &PropertiesRef<'_>,
+        size: masonry::kurbo::Size,
+    ) {
         let color_hex = Self::color_to_hex(&_props.get::<ContentColor>().color);
-        let size = bc.constrain(self.intrinsic_size());
 
         if self.dirty || self.last_size != size || self.last_color_hex != color_hex {
             self.last_size = size;
@@ -139,8 +160,6 @@ impl Widget for SvgWidget {
             self.rebuild_scene(size, &color_hex);
             self.dirty = false;
         }
-
-        size
     }
 
     fn paint(&mut self, _ctx: &mut PaintCtx<'_>, _props: &PropertiesRef<'_>, scene: &mut Scene) {

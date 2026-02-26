@@ -1,6 +1,8 @@
 use masonry::app::RenderRoot;
-use masonry::core::{NewWidget, Properties, WidgetId, WidgetOptions};
-use masonry::properties::types::{CrossAxisAlignment, Length, MainAxisAlignment};
+use masonry::core::{NewWidget, PropertySet, WidgetId, WidgetOptions, WidgetTag};
+use masonry::layout::Dim;
+use masonry::properties::Dimensions;
+use masonry::properties::types::{CrossAxisAlignment, MainAxisAlignment};
 use masonry::widgets::Flex;
 
 use crate::ipc::{BoxStyle, CrossAlign, FlexDirection, MainAlign, WidgetData, WidgetKind};
@@ -17,7 +19,6 @@ pub fn create(
     style: Option<BoxStyle>,
     _data: Option<WidgetData>,
     child_index: usize,
-    widget_id: WidgetId,
 ) {
     let style_ref = style.as_ref();
 
@@ -33,8 +34,8 @@ pub fn create(
             CrossAlign::Start => CrossAxisAlignment::Start,
             CrossAlign::Center => CrossAxisAlignment::Center,
             CrossAlign::End => CrossAxisAlignment::End,
-            CrossAlign::Fill => CrossAxisAlignment::Fill,
-            CrossAlign::Baseline => CrossAxisAlignment::Baseline,
+            CrossAlign::Fill => CrossAxisAlignment::Stretch,
+            CrossAlign::Baseline => CrossAxisAlignment::Start,
         });
     }
 
@@ -50,25 +51,23 @@ pub fn create(
         });
     }
 
-    let gap = style_ref.and_then(|s| s.gap);
-    if let Some(gap) = gap {
-        new_flex = new_flex.with_gap(Length::px(gap));
-    }
-
-    // If flex-grow is set, auto-enable must_fill_main_axis unless explicitly overridden.
-    if style_ref.and_then(|s| s.flex).is_some() {
-        let fill = style_ref
-            .and_then(|s| s.must_fill_main_axis)
-            .unwrap_or(true);
-        new_flex = new_flex.must_fill_main_axis(fill);
-    } else if let Some(fill) = style_ref.and_then(|s| s.must_fill_main_axis) {
-        new_flex = new_flex.must_fill_main_axis(fill);
-    }
-
-    let props = style_ref
+    let mut props = style_ref
         .map(build_box_properties)
-        .unwrap_or_else(Properties::new);
-    let new_widget = NewWidget::new_with(new_flex, widget_id, WidgetOptions::default(), props);
+        .unwrap_or_else(PropertySet::new);
+
+    if style_ref
+        .and_then(|s| s.must_fill_main_axis)
+        .unwrap_or(false)
+    {
+        let stretch_dims = match dir.as_ref() {
+            Some(FlexDirection::Row) => Dimensions::width(Dim::Stretch),
+            _ => Dimensions::height(Dim::Stretch),
+        };
+        props = props.with(stretch_dims);
+    }
+
+    let new_widget = NewWidget::new_with(new_flex, None, WidgetOptions::default(), props);
+    let widget_id = new_widget.id();
 
     if add_to_parent(
         render_root,

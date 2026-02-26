@@ -1,11 +1,13 @@
-use masonry::core::{Properties, StyleProperty};
+use masonry::core::{PropertySet, StyleProperty};
+use masonry::layout::{Dim, Length};
 use masonry::parley::style::{
     FontFamily, FontStack, FontStyle, FontWeight, GenericFamily, LineHeight,
 };
 use masonry::peniko::Color;
-use masonry::properties::types::{CrossAxisAlignment, Length, MainAxisAlignment};
+use masonry::properties::types::{CrossAxisAlignment, MainAxisAlignment};
 use masonry::properties::{
-    Background, BorderColor, BorderWidth, ContentColor, CornerRadius, HoveredBorderColor, Padding,
+    Background, BorderColor, BorderWidth, ContentColor, CornerRadius, Dimensions, Gap,
+    HoveredBorderColor, Padding,
 };
 use masonry::widgets::Flex;
 
@@ -73,8 +75,8 @@ pub fn build_text_styles(style: &BoxStyle) -> Vec<StyleProperty> {
 }
 
 /// Build a Properties set with box-model styling
-pub fn build_box_properties(style: &BoxStyle) -> Properties {
-    let mut props = Properties::new();
+pub fn build_box_properties(style: &BoxStyle) -> PropertySet {
+    let mut props = PropertySet::new();
 
     if let Some(ref color) = style.color {
         props = props.with(ContentColor::new(color_value_to_peniko(color)));
@@ -115,6 +117,23 @@ pub fn build_box_properties(style: &BoxStyle) -> Properties {
                 });
             }
         }
+    }
+
+    if let Some(gap) = style.gap {
+        props = props.with(Gap::new(Length::px(gap)));
+    }
+
+    match (style.width, style.height) {
+        (Some(w), Some(h)) => {
+            props = props.with(Dimensions::fixed(Length::px(w), Length::px(h)));
+        }
+        (Some(w), None) => {
+            props = props.with(Dimensions::width(Length::px(w)));
+        }
+        (None, Some(h)) => {
+            props = props.with(Dimensions::height(Length::px(h)));
+        }
+        (None, None) => {}
     }
 
     props
@@ -166,6 +185,23 @@ pub fn apply_box_props_to_widget(
             }
         }
     }
+
+    if let Some(gap) = style.gap {
+        widget.insert_prop(Gap::new(Length::px(gap)));
+    }
+
+    match (style.width, style.height) {
+        (Some(w), Some(h)) => {
+            widget.insert_prop(Dimensions::fixed(Length::px(w), Length::px(h)));
+        }
+        (Some(w), None) => {
+            widget.insert_prop(Dimensions::width(Length::px(w)));
+        }
+        (None, Some(h)) => {
+            widget.insert_prop(Dimensions::height(Length::px(h)));
+        }
+        (None, None) => {}
+    }
 }
 
 /// Apply style to a Flex widget (root or otherwise). Handles box props + flex-specific props.
@@ -179,8 +215,8 @@ pub fn apply_flex_style(flex: &mut masonry::core::WidgetMut<'_, Flex>, style: &B
                 CrossAlign::Start => CrossAxisAlignment::Start,
                 CrossAlign::Center => CrossAxisAlignment::Center,
                 CrossAlign::End => CrossAxisAlignment::End,
-                CrossAlign::Fill => CrossAxisAlignment::Fill,
-                CrossAlign::Baseline => CrossAxisAlignment::Baseline,
+                CrossAlign::Fill => CrossAxisAlignment::Stretch,
+                CrossAlign::Baseline => CrossAxisAlignment::Start,
             },
         );
     }
@@ -197,11 +233,14 @@ pub fn apply_flex_style(flex: &mut masonry::core::WidgetMut<'_, Flex>, style: &B
             },
         );
     }
-    if let Some(gap) = style.gap {
-        Flex::set_gap(flex, Length::px(gap));
-    }
-    if let Some(fill) = style.must_fill_main_axis {
-        Flex::set_must_fill_main_axis(flex, fill);
+
+    if let Some(true) = style.must_fill_main_axis {
+        let stretch_dims = match style.direction {
+            Some(crate::ipc::FlexDirection::Row) => Dimensions::width(Dim::Stretch),
+            Some(crate::ipc::FlexDirection::Column) => Dimensions::height(Dim::Stretch),
+            None => Dimensions::STRETCH,
+        };
+        flex.insert_prop(stretch_dims);
     }
 }
 

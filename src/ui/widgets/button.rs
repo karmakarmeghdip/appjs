@@ -1,16 +1,19 @@
 use masonry::app::RenderRoot;
-use masonry::core::{NewWidget, Properties, WidgetId, WidgetOptions};
+use masonry::core::{NewWidget, PropertySet, WidgetId, WidgetOptions, WidgetTag};
+use masonry::layout::Length;
 use masonry::peniko::Color;
-use masonry::properties::ContentColor;
+use masonry::properties::{ContentColor, Dimensions};
 use masonry::widgets::{Button, Flex, Label};
 
 use crate::ipc::{BoxStyle, CrossAlign, FlexDirection, MainAlign, WidgetData, WidgetKind};
-use crate::ui::styles::{build_box_properties, build_text_styles, default_text_style_props};
+use crate::ui::styles::{
+    build_box_properties, build_text_styles, color_value_to_peniko, default_text_style_props,
+};
 use crate::ui::widget_manager::{WidgetInfo, WidgetManager};
 use crate::ui::widgets::svg_widget_impl::SvgWidget;
 use crate::ui::widgets::utils::add_to_parent;
 
-use masonry::properties::types::{CrossAxisAlignment, Length, MainAxisAlignment};
+use masonry::properties::types::{CrossAxisAlignment, MainAxisAlignment};
 
 pub fn create(
     render_root: &mut RenderRoot,
@@ -21,7 +24,6 @@ pub fn create(
     style: Option<BoxStyle>,
     data: Option<WidgetData>,
     child_index: usize,
-    widget_id: WidgetId,
 ) {
     let style_ref = style.as_ref();
 
@@ -46,8 +48,8 @@ pub fn create(
             CrossAlign::Start => CrossAxisAlignment::Start,
             CrossAlign::Center => CrossAxisAlignment::Center,
             CrossAlign::End => CrossAxisAlignment::End,
-            CrossAlign::Fill => CrossAxisAlignment::Fill,
-            CrossAlign::Baseline => CrossAxisAlignment::Baseline,
+            CrossAlign::Fill => CrossAxisAlignment::Stretch,
+            CrossAlign::Baseline => CrossAxisAlignment::Start,
         });
     } else {
         new_flex = new_flex.cross_axis_alignment(CrossAxisAlignment::Center);
@@ -68,28 +70,25 @@ pub fn create(
         new_flex = new_flex.main_axis_alignment(MainAxisAlignment::Center);
     }
 
-    // Gap
-    let gap = style_ref.and_then(|s| s.gap);
-    if let Some(gap) = gap {
-        new_flex = new_flex.with_gap(Length::px(gap));
-    } else {
-        new_flex = new_flex.with_gap(Length::px(8.0)); // Default gap
-    }
-
-    // Must fill main axis
-    if style_ref.and_then(|s| s.flex).is_some() {
-        let fill = style_ref
-            .and_then(|s| s.must_fill_main_axis)
-            .unwrap_or(true);
-        new_flex = new_flex.must_fill_main_axis(fill);
-    } else if let Some(fill) = style_ref.and_then(|s| s.must_fill_main_axis) {
-        new_flex = new_flex.must_fill_main_axis(fill);
-    }
-
     // Add SVG icon if present
     if let Some(ref svg_str) = svg_data {
         let svg_widget = SvgWidget::new(svg_str.clone());
-        new_flex = new_flex.with_child(NewWidget::new(svg_widget));
+        let mut svg_props = PropertySet::new();
+
+        if let Some(color) = style_ref.and_then(|s| s.color.as_ref()) {
+            svg_props = svg_props.with(ContentColor::new(color_value_to_peniko(color)));
+        }
+
+        if let Some(icon_size) = style_ref.and_then(|s| s.icon_size) {
+            svg_props = svg_props.with(Dimensions::fixed(
+                Length::px(icon_size),
+                Length::px(icon_size),
+            ));
+        }
+
+        let svg_new_widget =
+            NewWidget::new_with(svg_widget, None, WidgetOptions::default(), svg_props);
+        new_flex = new_flex.with_fixed(svg_new_widget);
     }
 
     // Add label
@@ -101,14 +100,24 @@ pub fn create(
         for s in &text_styles {
             inner_label = inner_label.with_style(s.clone());
         }
-        new_flex = new_flex.with_child(NewWidget::new(inner_label));
+
+        let label_widget = if let Some(color) = style_ref.and_then(|s| s.color.as_ref()) {
+            let label_props =
+                PropertySet::new().with(ContentColor::new(color_value_to_peniko(color)));
+            NewWidget::new_with(inner_label, None, WidgetOptions::default(), label_props)
+        } else {
+            NewWidget::new(inner_label)
+        };
+
+        new_flex = new_flex.with_fixed(label_widget);
     }
 
     let button = Button::new(NewWidget::new(new_flex));
     let props = style_ref
         .map(build_box_properties)
-        .unwrap_or_else(|| Properties::new().with(ContentColor::new(Color::WHITE)));
-    let new_widget = NewWidget::new_with(button, widget_id, WidgetOptions::default(), props);
+        .unwrap_or_else(|| PropertySet::new().with(ContentColor::new(Color::WHITE)));
+    let new_widget = NewWidget::new_with(button, None, WidgetOptions::default(), props);
+    let widget_id = new_widget.id();
 
     if add_to_parent(
         render_root,

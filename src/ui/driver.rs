@@ -4,9 +4,12 @@ use masonry_winit::app::{AppDriver, DriverCtx, WindowId};
 
 use crate::ipc::{ClientCommandAction, UiEvent, UiEventSender, WidgetActionKind};
 
+use super::global_state::set_global_wgpu;
 use super::handler::handle_client_command;
 use super::widget_manager::{WidgetInfo, WidgetManager};
 use super::widgets::hoverable::HoverAction;
+use super::widgets::video_widget_impl::{VideoAction, VideoWidget};
+use masonry_winit::app::WgpuContext;
 
 /// Application driver that bridges JS runtime commands with the masonry UI.
 ///
@@ -55,20 +58,6 @@ impl AppDriver for VellumDriver {
         widget_id: WidgetId,
         action: ErasedAction,
     ) {
-        // Check if this action is a ClientCommandAction sent via EventLoopProxy
-        if let Some(client_action) = action.downcast_ref::<ClientCommandAction>() {
-            let cmd = client_action.0.clone();
-            let render_root = ctx.render_root(window_id);
-            handle_client_command(
-                cmd,
-                window_id,
-                render_root,
-                &mut self.widget_manager,
-                &self.event_sender,
-            );
-            return;
-        }
-
         let type_name = action.type_name();
 
         // Handle CheckboxToggled: auto-toggle + dispatch event
@@ -142,5 +131,53 @@ impl AppDriver for VellumDriver {
             format!("Unhandled widget action on {widget_id:?}: {type_name}"),
             false,
         );
+    }
+
+    fn on_async_action(
+        &mut self,
+        window_id: WindowId,
+        ctx: &mut DriverCtx<'_, '_>,
+        action: ErasedAction,
+    ) {
+        // Check if this action is a ClientCommandAction sent via EventLoopProxy
+        if let Some(client_action) = action.downcast_ref::<ClientCommandAction>() {
+            let cmd = client_action.0.clone();
+            let render_root = ctx.render_root(window_id);
+            handle_client_command(
+                cmd,
+                window_id,
+                render_root,
+                &mut self.widget_manager,
+                &self.event_sender,
+            );
+            return;
+        }
+
+        if let Some(video_action) = action.downcast_ref::<VideoAction>() {
+            match video_action {
+                VideoAction::SetOverride(image_data, texture) => {
+                    // Deref the Arc to get a reference to the wgpu::Texture.
+                    ctx.set_image_override(
+                        image_data.clone(),
+                        masonry::vello::wgpu::Texture::clone(texture),
+                    );
+                }
+                VideoAction::ClearOverride(image_data) => {
+                    ctx.clear_image_override(image_data);
+                }
+                VideoAction::FrameReady(widget_id) => {
+                    // A new frame was pushed: drain pending dimensions and repaint.
+                    ctx.render_root(window_id)
+                        .edit_widget(*widget_id, |mut _w| {
+                            let mut video = _w.downcast::<VideoWidget>();
+                            VideoWidget::on_frame_ready(&mut video);
+                        });
+                }
+            }
+        }
+    }
+
+    fn on_wgpu_ready(&mut self, wgpu: &WgpuContext<'_>) {
+        set_global_wgpu(wgpu.device.clone(), wgpu.queue.clone());
     }
 }
