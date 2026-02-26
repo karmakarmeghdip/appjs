@@ -187,3 +187,12 @@ export function isReactiveAccessorProp(name: string, value: unknown): value is (
   if (isEventProp(name)) return false;
   return true;
 }
+
+export function hasDynamicChildren(input: unknown): boolean {
+  if (typeof input === "function") return true;
+  if (!Array.isArray(input)) return false;
+  for (const entry of input) {
+    if (hasDynamicChildren(entry)) return true;
+  }
+  return false;
+}

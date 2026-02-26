@@ -1,4 +1,4 @@
-
+/// <reference path="./shim.d.ts" />
 import { createRenderEffect, runWithOwner } from "solid-js/dist/solid.js";
 import type { Owner } from "solid-js";
 import { createRenderer } from "solid-js/universal";
@@ -13,21 +13,10 @@ import {
   HostText,
   HostParent,
   RenderOptions,
-  WidgetActionHandler,
-  VellumStyle,
 } from "./types";
+import { DEFAULT_PARENT_ID } from "./constants";
 import {
-  DEFAULT_PARENT_ID,
-  EVENT_WILDCARD,
-} from "./constants";
-import {
-  isEventProp,
-  normalizeEventName,
-  normalizeWidgetKind,
-  mapStyleKey,
   isNullish,
-  isPrimitiveStyleValue,
-  createEmptyStyle,
   isVellumJsxNode,
   isHostNodeLike,
   normalizeChildrenArray,
@@ -35,364 +24,21 @@ import {
   unlinkFromParent,
   linkIntoParent,
   resolveChildValue,
+  hasDynamicChildren,
 } from "./utils";
+
+import { createEventManager } from "./events";
+import { applyMountedProperty } from "./props";
+import { createNodeBuilder, createRoot, getParentWidgetId } from "./nodes";
+import { createMountManager } from "./mount";
 
 export function createVellumRenderer(runtime: VellumRuntime): VellumRenderer {
   const widgetNodeById = new Map<string, HostElement>();
   const jsxNodeMap = new WeakMap<object, HostNode>();
-  let fallbackId = 0;
-  let unsubscribeEvents: (() => void) | null = null;
 
-  function hasDynamicChildren(input: unknown): boolean {
-    if (typeof input === "function") return true;
-    if (!Array.isArray(input)) return false;
-    for (const entry of input) {
-      if (hasDynamicChildren(entry)) return true;
-    }
-    return false;
-  }
-
-  function nextWidgetId(prefix: string): string {
-    if (runtime.nextId) return runtime.nextId();
-    fallbackId += 1;
-    return `__solid_${prefix}_${fallbackId}`;
-  }
-
-  function ensureEventSubscription(): void {
-    if (unsubscribeEvents) return;
-
-    unsubscribeEvents = runtime.events.on(EVENT_WILDCARD, (event) => {
-      const widgetId = event.widgetId;
-      if (!widgetId) return;
-
-      const node = widgetNodeById.get(widgetId);
-      if (!node) return;
-
-      const action = event.action ?? EVENT_WILDCARD;
-      const specific = node.handlers.get(action);
-      if (specific) {
-        for (const handler of specific) handler(event);
-      }
-
-      const wildcard = node.handlers.get(EVENT_WILDCARD);
-      if (wildcard) {
-        for (const handler of wildcard) handler(event);
-      }
-    });
-  }
-
-  function createRoot(parentWidgetId: string | null = DEFAULT_PARENT_ID): VellumRoot {
-    return {
-      nodeType: "root",
-      parent: null,
-      firstChild: null,
-      nextSibling: null,
-      mounted: true,
-      parentWidgetId,
-    };
-  }
-
-  function getParentWidgetId(parent: HostParent): string | null {
-    if (parent.nodeType === "root") return parent.parentWidgetId;
-    return parent.widgetId;
-  }
-
-  function applyEventProperty(
-    node: HostElement,
-    propName: string,
-    value: unknown,
-    prev: unknown
-  ): boolean {
-    const action = normalizeEventName(propName);
-    if (!action) return false;
-
-    const handlers = node.handlers.get(action) ?? new Set<WidgetActionHandler>();
-
-    if (typeof prev === "function") {
-      handlers.delete(prev as WidgetActionHandler);
-    }
-
-    if (typeof value === "function") {
-      handlers.add(value as WidgetActionHandler);
-    }
-
-    if (handlers.size > 0) {
-      node.handlers.set(action, handlers);
-      ensureEventSubscription();
-    } else {
-      node.handlers.delete(action);
-    }
-
-    return true;
-  }
-
-  function collectInitialWidgetState(node: HostElement): {
-    kind: string;
-    text: string | null;
-    style: VellumStyle | null;
-    params: Record<string, unknown> | null;
-    data: Uint8Array | null;
-  } {
-    const kind = normalizeWidgetKind(node.tag);
-    const style = createEmptyStyle();
-    const params: Record<string, unknown> = Object.create(null);
-    let hasStyle = false;
-    let hasParams = false;
-    let text: string | null = null;
-
-    if (node.tag === "row") {
-      style.direction = "row";
-      hasStyle = true;
-    } else if (node.tag === "column" || node.tag === "div" || node.tag === "section" || node.tag === "main" || node.tag === "article") {
-      style.direction = "column";
-      hasStyle = true;
-    }
-
-    for (const [name, value] of Object.entries(node.props)) {
-      if (name === "children" || name === "ref" || name === "key") continue;
-      if (isEventProp(name) || isNullish(value)) continue;
-      if (name === "id") continue;
-      if (name === "type") continue;
-      if (name === "visible") continue;
-      if (name === "data") continue;
-      if (name === "objectFit") continue;
-      if (name === "src" || name === "playing" || name === "position") continue;
-
-      if (name === "text") {
-        text = String(value);
-        continue;
-      }
-
-      if (name === "checked") {
-        if (kind === "checkbox") {
-          params.checked = Boolean(value);
-          hasParams = true;
-        }
-        continue;
-      }
-
-      if (name === "value" && typeof value === "number") {
-        if (kind === "slider" || kind === "progressBar") {
-          params.value = value;
-          hasParams = true;
-        }
-        continue;
-      }
-
-      if (name === "min" && typeof value === "number" && kind === "slider") {
-        params.minValue = value;
-        hasParams = true;
-        continue;
-      }
-
-      if (name === "max" && typeof value === "number" && kind === "slider") {
-        params.maxValue = value;
-        hasParams = true;
-        continue;
-      }
-
-      if (name === "step" && typeof value === "number" && kind === "slider") {
-        params.step = value;
-        hasParams = true;
-        continue;
-      }
-
-      if (name === "placeholder" && typeof value === "string" && kind === "textInput") {
-        params.placeholder = value;
-        hasParams = true;
-        continue;
-      }
-
-      if (name === "style" && typeof value === "object") {
-        Object.assign(style, value as VellumStyle);
-        hasStyle = true;
-        continue;
-      }
-
-      if (isPrimitiveStyleValue(value)) {
-        style[mapStyleKey(name)] = value;
-        hasStyle = true;
-      }
-    }
-
-    // Extract image-specific props
-    let data: Uint8Array | null = null;
-
-    if (kind === "image") {
-      const rawData = node.props.data;
-      if (rawData instanceof Uint8Array) {
-        data = rawData;
-      }
-      const objectFit = node.props.objectFit;
-      if (typeof objectFit === "string") {
-        params.object_fit = objectFit;
-        hasParams = true;
-      }
-    }
-
-    if (kind === "video") {
-      const src = node.props.src;
-      if (typeof src === "string") {
-        params.src = src;
-        hasParams = true;
-      }
-    }
-
-    if (kind === "progressBar" && params.value !== undefined && params.progress === undefined) {
-      params.progress = params.value;
-      delete params.value;
-    }
-
-    return {
-      kind,
-      text,
-      style: hasStyle ? style : null,
-      params: hasParams ? params : null,
-      data,
-    };
-  }
-
-  function applyMountedProperty(node: HostElement, name: string, value: unknown): void {
-    if (name === "children" || name === "ref" || name === "key" || name === "id") return;
-    if (name === "type" || name === "src") return;
-    if (isEventProp(name)) return;
-
-    if (name === "playing" && typeof value === "boolean") {
-      if (value) {
-        runtime.ui.playVideo?.(node.widgetId);
-      } else {
-        runtime.ui.pauseVideo?.(node.widgetId);
-      }
-      return;
-    }
-
-    if (name === "position" && typeof value === "number") {
-      runtime.ui.seekVideo?.(node.widgetId, value);
-      return;
-    }
-
-    if (name === "style") {
-      if (value && typeof value === "object") {
-        runtime.ui.setStyle(node.widgetId, value as VellumStyle);
-      }
-      return;
-    }
-
-    if (name === "text") {
-      runtime.ui.setText(node.widgetId, String(value ?? ""));
-      return;
-    }
-
-    if (name === "visible") {
-      runtime.ui.setVisible(node.widgetId, Boolean(value));
-      return;
-    }
-
-    if (name === "checked") {
-      runtime.ui.setChecked(node.widgetId, Boolean(value));
-      return;
-    }
-
-    if (name === "value" && typeof value === "number") {
-      runtime.ui.setValue(node.widgetId, value);
-      return;
-    }
-
-    if (name === "min" || name === "max" || name === "step" || name === "placeholder") {
-      return;
-    }
-
-    if (isPrimitiveStyleValue(value)) {
-      runtime.ui.setStyleProperty(node.widgetId, mapStyleKey(name), value);
-    }
-
-    if (name === "data" && value instanceof Uint8Array && runtime.ui.setImageData) {
-      runtime.ui.setImageData(node.widgetId, value);
-    }
-  }
-
-  function mountNode(node: HostNode, parentWidgetId: string | null): void {
-    if (node.mounted) return;
-
-    if (node.nodeType === "text") {
-      runtime.ui.createWidget(node.widgetId, "label", parentWidgetId, node.text, null);
-      node.mounted = true;
-      return;
-    }
-
-    const init = collectInitialWidgetState(node);
-    runtime.ui.createWidget(node.widgetId, init.kind, parentWidgetId, init.text, init.style, init.params, init.data);
-    node.mounted = true;
-    widgetNodeById.set(node.widgetId, node);
-
-    for (const [name, value] of Object.entries(node.props)) {
-      applyMountedProperty(node, name, value);
-    }
-  }
-
-  function mountSubtree(node: HostNode, parentWidgetId: string | null): void {
-    mountNode(node, parentWidgetId);
-    if (node.nodeType === "text") return;
-
-    let child = node.firstChild;
-    while (child) {
-      mountSubtree(child, node.widgetId);
-      child = child.nextSibling;
-    }
-  }
-
-  function unmountSubtree(node: HostNode): void {
-    const children: HostNode[] = [];
-    let child = node.firstChild;
-    while (child) {
-      children.push(child);
-      child = child.nextSibling;
-    }
-
-    for (let i = children.length - 1; i >= 0; i -= 1) {
-      unmountSubtree(children[i]);
-    }
-
-    if (node.nodeType === "element") {
-      widgetNodeById.delete(node.widgetId);
-      node.handlers.clear();
-    }
-
-    if (node.mounted) {
-      runtime.ui.removeWidget(node.widgetId);
-      node.mounted = false;
-    }
-
-    node.parent = null;
-    node.nextSibling = null;
-    node.firstChild = null;
-  }
-
-  function buildElementNode(tag: string): HostElement {
-    return {
-      nodeType: "element",
-      tag,
-      widgetId: nextWidgetId("el"),
-      props: Object.create(null) as Record<string, unknown>,
-      handlers: new Map<string, Set<WidgetActionHandler>>(),
-      parent: null,
-      firstChild: null,
-      nextSibling: null,
-      mounted: false,
-    };
-  }
-
-  function buildTextNode(value: string): HostText {
-    return {
-      nodeType: "text",
-      widgetId: nextWidgetId("text"),
-      text: String(value),
-      parent: null,
-      firstChild: null,
-      nextSibling: null,
-      mounted: false,
-    };
-  }
+  const eventManager = createEventManager(runtime, widgetNodeById);
+  const nodeBuilder = createNodeBuilder(runtime);
+  const mountManager = createMountManager(runtime, widgetNodeById);
 
   function setElementProperty(node: HostElement, name: string, value: unknown, prev: unknown): void {
     if (name === "ref" && typeof value === "function") {
@@ -413,12 +59,12 @@ export function createVellumRenderer(runtime: VellumRuntime): VellumRenderer {
       node.props[name] = value;
     }
 
-    if (applyEventProperty(node, name, value, prev)) {
+    if (eventManager.applyEventProperty(node, name, value, prev)) {
       return;
     }
 
     if (node.mounted) {
-      applyMountedProperty(node, name, value);
+      applyMountedProperty(runtime, node, name, value);
     }
   }
 
@@ -427,27 +73,12 @@ export function createVellumRenderer(runtime: VellumRuntime): VellumRenderer {
     linkIntoParent(parent, node, anchor);
 
     if (parent.mounted) {
-      mountSubtree(node, getParentWidgetId(parent));
+      mountManager.mountSubtree(node, getParentWidgetId(parent));
     }
-  }
-
-  function clearElementChildren(element: HostElement): void {
-    const children: HostNode[] = [];
-    let child = element.firstChild;
-    while (child) {
-      children.push(child);
-      child = child.nextSibling;
-    }
-
-    for (let i = children.length - 1; i >= 0; i -= 1) {
-      unmountSubtree(children[i]);
-    }
-
-    element.firstChild = null;
   }
 
   function reconcileElementChildren(element: HostElement, childrenValue: unknown): void {
-    clearElementChildren(element);
+    mountManager.clearElementChildren(element);
 
     const children = normalizeChildrenArray(childrenValue);
 
@@ -466,7 +97,7 @@ export function createVellumRenderer(runtime: VellumRuntime): VellumRenderer {
     }
 
     if (typeof resolved === "string" || typeof resolved === "number") {
-      return buildTextNode(String(resolved));
+      return nodeBuilder.buildTextNode(String(resolved));
     }
 
     if (!isVellumJsxNode(resolved)) {
@@ -478,7 +109,7 @@ export function createVellumRenderer(runtime: VellumRuntime): VellumRenderer {
       return cached;
     }
 
-    const element = buildElementNode(resolved.type);
+    const element = nodeBuilder.buildElementNode(resolved.type);
     jsxNodeMap.set(resolved as object, element);
 
     const props = resolved.props ?? {};
@@ -532,10 +163,10 @@ export function createVellumRenderer(runtime: VellumRuntime): VellumRenderer {
 
   const renderer = createRenderer<HostNode | VellumRoot>({
     createElement(tag: string): HostElement {
-      return buildElementNode(tag);
+      return nodeBuilder.buildElementNode(tag);
     },
     createTextNode(value: string): HostText {
-      return buildTextNode(value);
+      return nodeBuilder.buildTextNode(value);
     },
     replaceText(node: HostNode | VellumRoot, value: string): void {
       if (node.nodeType !== "text") return;
@@ -566,7 +197,7 @@ export function createVellumRenderer(runtime: VellumRuntime): VellumRenderer {
       if (!hostNode) return;
 
       unlinkFromParent(hostParent, hostNode);
-      unmountSubtree(hostNode);
+      mountManager.unmountSubtree(hostNode);
     },
     getParentNode(node: HostNode | VellumRoot): HostParent | undefined {
       return node.parent ?? undefined;
@@ -593,18 +224,15 @@ export function createVellumRenderer(runtime: VellumRuntime): VellumRenderer {
   }
 
   function dispose(): void {
-    if (unsubscribeEvents) {
-      unsubscribeEvents();
-      unsubscribeEvents = null;
-    }
+    eventManager.dispose();
     widgetNodeById.clear();
   }
 
   return {
     ...renderer,
     createRoot,
-    createHostElement: (tag: string): VellumHostElement => buildElementNode(tag),
-    createHostText: (value: string): VellumHostText => buildTextNode(value),
+    createHostElement: (tag: string): VellumHostElement => nodeBuilder.buildElementNode(tag),
+    createHostText: (value: string): VellumHostText => nodeBuilder.buildTextNode(value),
     setHostProperty: (node: VellumHostElement, name: string, value: unknown, prev?: unknown): void => {
       setElementProperty(node as HostElement, name, value, prev);
     },
